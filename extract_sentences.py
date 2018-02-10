@@ -74,4 +74,4 @@ def extract_sentences_rare_words(data,cutoff_percent):
             
     data_less = np.concatenate(sentence_kept_list)
     
-    return data_less
+    return sentence_kept_list, p_list
