@@ -43,86 +43,26 @@ parser.add_argument('--bidirectional', action='store_true', default=False,
                     help='use Bi-LSTM')
 parser.add_argument('--serialize', action='store_true', default=False, #False,
                     help='continue training a stored model')
-parser.add_argument('--log-interval', type=int, default=20, metavar='N',
+parser.add_argument('--log-interval', type=int, default=100, metavar='N',
                     help='report interval')
 args = parser.parse_args()
 
 #############################################
 # Load data
 #############################################
-# Extract data
-train, val, test = chainer.datasets.get_ptb_words()
-# Dictionary between id and word
-ptb_dict = chainer.datasets.get_ptb_words_vocabulary()
-# Number of words
-words_num = len(ptb_dict)
+import extract_sentences as es
 
-# Reverse dictionary
-ptb_word_id_dict = ptb_dict
-ptb_id_word_dict = dict((v,k) for k,v in ptb_word_id_dict.items())
+# train_data_array = es.train
+train_data_array = es.extract_sentences_rare_words(es.train, .75)
+val_data_array = es.val
 
-# id for <eos>
-eos_idx = ptb_dict['<eos>']
+n_letters = len(es.ptb_word_id_dict)
+n_categories = len(es.ptb_word_id_dict)
 
-# Indices in train data corresponding to <eos>
-eos_list = np.where(train==eos_idx)[0]
-
-# Extract sentences
-sentence_list = []
-
-eos_idx_prev = 0
-for eos_idx_curr in eos_list:
-    sentence = train[eos_idx_prev:eos_idx_curr]
-    sentence_list.append(sentence)
-    eos_idx_prev = eos_idx_curr+1
-sentence_num = len(sentence_list) # Number of sentences
-    
-# Frequency table of words
-freq_list = np.zeros(words_num)
-for i in range(words_num):
-    freq_list[i] = np.sum(train==i)
-    
-prob_words = freq_list/len(train)
-
-# Sort
-idx_list_sorted = np.argsort(freq_list) # Low to high
-freq_list_sorted = freq_list[idx_list_sorted]
-
-# Remove top 50%
-idx_list_rare = idx_list_sorted[0:words_num//2]   # Words corresponding to bottom 50% frequency
-freq_list_rare = freq_list_sorted[0:words_num//2]
-
-# Go through every sentence, every word
-p_list = []                 # Rare word fraction (inverse weights)
-sentence_kept_list = []     # Sentences kept for labelling
-
-for i in range(sentence_num):
-    sentence = sentence_list[i]
-    num_total = len(sentence)   # Total number of words
-    num_rare = 0                # Number of rare words
-    for word in sentence:
-        if word in idx_list_rare:   # If word is rare
-            num_rare += 1
-            
-    p_i = (num_rare+1)/num_total    # Prob. of sampling
-    
-    # Cutoff
-    if p_i > 1:
-        p_i = 1
-        
-    r = np.random.random()
-    if r < p_i:
-        p_list.append(p_i)  
-        sentence_kept_list.append(sentence)
-        
-train_less = np.concatenate(sentence_kept_list)
-n_letters = len(ptb_word_id_dict)
-n_categories = len(ptb_word_id_dict)
-train_data_array = train_less
-val_data_array = train_less
+print (len(train_data_array), len(val_data_array))
+# exit()
 
 path = 'word_data'
-
 ########################################################
 # Pre-process training and validation data
 ########################################################
@@ -297,11 +237,11 @@ def evaluate():
         loss = criterion(output, targets)
         total_loss += loss.data
 
-        if batch % (args.log_interval // 20) == 0 and batch > 0:
+        if batch % (args.log_interval) == 0 and batch > 0:
             elapsed = time.time() - start_time
             print('| validation | {:5d}/{:5d} batches | lr {:02.2f} | ms/batch {:5.2f} | '
                   .format(batch, val_data.shape[1] // args.bptt, lr,
-                          elapsed * 1000 / (args.log_interval // 20)))
+                          elapsed * 1000 / (args.log_interval)))
             start_time = time.time()
     return total_loss[0] / (batch_length / args.bptt)
 
@@ -324,13 +264,11 @@ try:
             val_loss))
         print('-' * 89)
 
-        # Save all models from each epoch
-        with open(path + '/{}_Epoch{}_BatchSize{}_Dropout{}_LR{}_HiddenDim{}.pt'.format(
-           name, epoch, args.batch_size, args.dropout, args.lr, args.nhid), 'wb') as f:
-            torch.save(model, f)
-
-        # check if the validation loss is the best we've seen so far.
+        # Save the model if the validation loss is the best we've seen so far.
         if not best_val_loss or val_loss < best_val_loss:
+            with open(path + '/{}_Epoch{}_BatchSize{}_Dropout{}_LR{}_HiddenDim{}.pt'.format(
+               name, args.load_epochs+args.epochs, args.batch_size, args.dropout, args.lr, args.nhid), 'wb') as f:
+                torch.save(model, f)
             best_val_loss = val_loss
         else:
             # Anneal the learning rate if no improvement has been seen in the validation dataset.
