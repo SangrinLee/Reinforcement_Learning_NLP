@@ -31,7 +31,7 @@ parser.add_argument('--load_epochs', type=int, default=0,
                     help='load epoch')
 parser.add_argument('--epochs', type=int, default=15,
                     help='upper epoch limit')
-parser.add_argument('--batch_size', type=int, default=5, metavar='N',
+parser.add_argument('--batch_size', type=int, default=1, metavar='N',
                     help='batch size')
 parser.add_argument('--bptt', type=int, default=100,
                     help='sequence length')
@@ -52,15 +52,33 @@ args = parser.parse_args()
 #############################################
 import extract_sentences as es
 
-# train_data_array = es.train
-train_data_array = es.extract_sentences_rare_words(es.train, .75)
+train_data_array = es.train
+# train_data_array = es.extract_sentences_rare_words(es.train, .5)
 val_data_array = es.val
 
 n_letters = len(es.ptb_word_id_dict)
 n_categories = len(es.ptb_word_id_dict)
 
-print (len(train_data_array), len(val_data_array))
-# exit()
+# print (len(train_data_array), len(val_data_array))
+
+# sentence_kept_list, p_list = es.extract_sentences_rare_words(es.train, .5)
+# saves the file for sent_kept_list, p_list
+# sentence_file=open('sentence_kept_list', 'wb')
+# pickle.dump(sentence_kept_list, sentence_file)
+# sentence_file.close()
+
+# prob_file=open('prob_file', 'wb')
+# pickle.dump(p_list, prob_file)
+# prob_file.close()
+
+with open('sentence_kept_list', 'rb') as handle:
+    sentence_kept_list = pickle.load(handle)
+
+with open('prob_file', 'rb') as handle:
+    p_list = pickle.load(handle)
+
+print (len(sentence_kept_list), len(p_list))
+
 
 path = 'word_data'
 ########################################################
@@ -88,9 +106,19 @@ def repackage_hidden(h):
 # to map that into indices of output array that you have 
 def get_batch(source, i, evaluation=False):
     seq_len = min(args.bptt, source.shape[1] - 1 - i) # -1 so that there's data for the target of the last time step
-    data = source[:, i: i + seq_len] 
+    # print ("# get_batch : ", seq_len)
     source_target = source.astype(np.int64)
-    target = source_target[:, i + 1: i + 1 + seq_len]
+
+    if (seq_len <= 0):
+        seq_len = 1
+        i = 0
+        target = source_target[:, i: i + seq_len]
+    else:
+        target = source_target[:, i + 1: i + 1 + seq_len]
+
+    data = source[:, i: i + seq_len] 
+    # source_target = source.astype(np.int64)
+    # target = source_target[:, i + 1: i + 1 + seq_len]
 
     # initialize train_data_tensor, test_data_tensor
     data_embedding = np.zeros((data.shape[0], data.shape[1], n_letters), dtype = np.float32)
@@ -173,7 +201,7 @@ if args.cuda:
     NLL.cuda()
 
 val_bsz = 5
-train_data = batchify(train_data_array, args.batch_size)
+# train_data = batchify(train_data_array, args.batch_size)
 val_data = batchify(val_data_array, val_bsz)
 
 def train():
@@ -185,18 +213,40 @@ def train():
     hidden = model.init_hidden(args.batch_size)
 
     batch_length = train_data_array.size // args.batch_size
-    for batch, i in enumerate(range(1, train_data.shape[1] - 1, args.bptt)):
-        # returns Variables
-        data, targets = get_batch(train_data, i)
+
+    for i in range(len(sentence_kept_list)):
+        train_data = sentence_kept_list[i].reshape(1, -1)
+
+
+    # for batch, i in enumerate(range(1, train_data.shape[1] - 1, args.bptt)):
+    #     # returns Variables
+        data, targets = get_batch(train_data, 1)
         
         if not args.bidirectional:
             hidden = model.init_hidden(args.batch_size)
         else:
             hidden = repackage_hidden(hidden)
         model.zero_grad()
-        output, hidden = model(data, hidden)
+        # print ("----- test -2 -----")
+        # print (type(train_data))
+        # print ("----- test -1 -----")
+        # print (train_data)
+        # print ("----- test 0 -----")
+        # print (data)
+        # print ("----- test 1 -----")
+        # print (data.size())
+        # print ("----- test 2 -----")
+        # print (len(hidden))
 
-        loss = criterion(output, targets)
+        output, hidden = model(data, hidden)
+        # print ("----- test 3 -----")
+        # print (output.size())
+        # print ("----- test 4 -----")
+        # print (len(hidden))
+
+        # loss = criterion(output, targets)
+        loss = criterion(output, targets) * (1/p_list[i])
+
         loss.backward()
 
         torch.nn.utils.clip_grad_norm(model.parameters(), args.clip)
@@ -204,12 +254,12 @@ def train():
             p.data.add_(-lr, p.grad.data)   # (scalar multiplier, other tensor)
 
         total_loss += loss.data
-        if batch % args.log_interval == 0 and batch > 0:
+        if i % args.log_interval == 0 and i > 0:
             cur_loss = total_loss[0] / args.log_interval
             elapsed = time.time() - start_time
             print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.2f} | ms/batch {:5.2f} | '
                   'loss {:5.2f} | ppl {:5.2f} |'.format(
-                   epoch, batch, train_data.shape[1] // args.bptt, lr,
+                   epoch, i, train_data.shape[1] // args.bptt, lr,
                    elapsed * 1000 / args.log_interval, cur_loss, math.exp(cur_loss)))
             total_loss = 0
             start_time = time.time()
