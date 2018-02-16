@@ -56,35 +56,24 @@ def iterate(cutoff):
     write_train = open("write_train_" + str(cutoff) + ".txt", "a", encoding='UTF-8')
     write_val = open("write_val_" + str(cutoff) + ".txt", "a", encoding='UTF-8')
 
+    es.extract_sentences_rare_words(es.train, cutoff)
+
+    with open('sentence_kept_list_' + str(cutoff), 'rb') as handle:
+        sentence_kept_list = pickle.load(handle)
+    
+    with open('p_list_' + str(cutoff), 'rb') as handle:
+        p_list = pickle.load(handle)
+
     train_data_array = es.train
-    # train_data_array = es.extract_sentences_rare_words(es.train, .5)
     val_data_array = es.val
+
+    print (len(train_data_array), len(val_data_array))
+    print (len(sentence_kept_list), len(p_list))
 
     n_letters = len(es.ptb_word_id_dict)
     n_categories = len(es.ptb_word_id_dict)
-
-    # print (len(train_data_array), len(val_data_array))
-
-    sentence_kept_list, p_list = es.extract_sentences_rare_words(es.train, cutoff)
-    # saves the file for sent_kept_list, p_list
-    # sentence_file=open('sentence_kept_list', 'wb')
-    # pickle.dump(sentence_kept_list, sentence_file)
-    # sentence_file.close()
-
-    # prob_file=open('prob_file', 'wb')
-    # pickle.dump(p_list, prob_file)
-    # prob_file.close()
-
-    # with open('sentence_kept_list', 'rb') as handle:
-    #     sentence_kept_list = pickle.load(handle)
-
-    # with open('prob_file', 'rb') as handle:
-    #     p_list = pickle.load(handle)
-
-    print (len(sentence_kept_list), len(p_list))
-
-
     path = 'word_data'
+
     ########################################################
     # Pre-process training and validation data
     ########################################################

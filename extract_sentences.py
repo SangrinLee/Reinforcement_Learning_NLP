@@ -1,5 +1,6 @@
 import numpy as np
 import chainer
+import pickle
 
 # Overhead
 # Extract data
@@ -72,6 +73,20 @@ def extract_sentences_rare_words(data,cutoff_percent):
             p_list.append(p_i)  
             sentence_kept_list.append(sentence)
             
-    data_less = np.concatenate(sentence_kept_list)
-    
-    return sentence_kept_list, p_list
+    # Saves the file for the length of sent_kept_list according to the cutoff percent
+    sentence_file_length=open('sentence_kept_list_length_' + str(cutoff_percent), 'wb')
+    pickle.dump(str(len(sentence_kept_list)), sentence_file_length)
+    sentence_file_length.close()
+
+    # Saves the file for sent_kept_list according to the cutoff percent
+    sentence_file=open('sentence_kept_list_' + str(cutoff_percent), 'wb')
+    pickle.dump(sentence_kept_list, sentence_file)
+    sentence_file.close()
+
+    # Saves the file for p_list according to the cutoff percent
+    p_file=open('p_list_' + str(cutoff_percent), 'wb')
+    pickle.dump(p_list, p_file)
+    p_file.close()
+
+    print ("#sentence_kept_list saved = ", len(sentence_kept_list))
+    print ("#p_list saved = ", len(p_list))
