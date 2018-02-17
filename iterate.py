@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 # type = "active"
 # type = "active_no_weight"
 # type = "baseline"
-type = "data_active"
+type = "data_active_no_weight"
 
 if type == "active":
 	import word_train_RL as train
@@ -16,19 +16,19 @@ elif type == "baseline":
 
 elif type == "data_active":
 	import rare_proportion as rare_prop
-	path = 'dataset/active learning'
+	path = 'dataset/active learning/'
 elif type == "data_active_no_weight":
 	import rare_proportion as rare_prop
-	path = 'dataset/active learning without weight'
+	path = 'dataset/active learning without weight/'
 elif type == "data_active_baseline":
 	import rare_proportion as rare_prop
-	path = 'dataset/baseline'
+	path = 'dataset/baseline/'
 
 prop_list = []
 for i in range(11):
 	print ("===== Cut off " + str(i * 0.1) + " =====")
 	# train.iterate(i * 0.1)
-	prop_list.append(path, rare_prop.iterate(i * 0.1))
+	prop_list.append(rare_prop.iterate(path, i * 0.1))
 
 print (type)
 plt.plot(prop_list)

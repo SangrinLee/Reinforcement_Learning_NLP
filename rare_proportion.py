@@ -10,11 +10,12 @@ idx_list_sorted = np.argsort(freq_list) # Low to high
 path = '\dataset\active learning\\'
 
 def iterate(path,cutoff):
+    print (path)
     with open(path+'sentence_kept_list_' + str(cutoff), 'rb') as handle:
         sentence_kept_list = pickle.load(handle)
         
     # Rare word list
-    idx_list_rare = idx_list_sorted[0:int(words_num*cutoff_percent)]    # Words corresponding to bottom cutoff_percent frequency
+    idx_list_rare = idx_list_sorted[0:int(es.words_num*cutoff)]    # Words corresponding to bottom cutoff_percent frequency
     
     # Data
     sentences_kept = np.concatenate(sentence_kept_list)
