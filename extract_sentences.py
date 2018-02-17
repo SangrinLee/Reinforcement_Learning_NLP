@@ -13,8 +13,8 @@ words_num = len(ptb_dict)
 ptb_word_id_dict = ptb_dict
 ptb_id_word_dict = dict((v,k) for k,v in ptb_word_id_dict.items())
 
-# Extract sentences sampled using cutoff_percent and then concatenated.
-def extract_sentences_rare_words(data,cutoff_percent):
+# Extract frequency list
+def extract_frequencies(data):
     # Number of words in data
     data_len = len(data)
 
@@ -40,6 +40,17 @@ def extract_sentences_rare_words(data,cutoff_percent):
         freq_list[i] = np.sum(data==i)
         
     prob_words = freq_list/data_len # Probability list
+
+    return freq_list
+
+# Extract sentences sampled using cutoff_percent and then concatenated.
+def extract_sentences_rare_words(data,cutoff_percent):
+    freq_list = extract_frequencies(data)
+    
+    # id for <unk>
+    unk_idx = ptb_dict['<unk>']
+    # <unk> is rare by definition
+    freq_list[unk_idx] = 0
 
     # Sort
     idx_list_sorted = np.argsort(freq_list) # Low to high
