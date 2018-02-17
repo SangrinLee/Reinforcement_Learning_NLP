@@ -3,7 +3,7 @@ import numpy as np
 import extract_sentences as es
 
 # Frequency list
-freq_list = es.extract_frequencies(train)
+freq_list = es.extract_frequencies(es.train)
 # Sort
 idx_list_sorted = np.argsort(freq_list) # Low to high
 
