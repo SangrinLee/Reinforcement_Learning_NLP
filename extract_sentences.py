@@ -14,6 +14,7 @@ words_num = len(ptb_dict)
 ptb_word_id_dict = ptb_dict
 ptb_id_word_dict = dict((v,k) for k,v in ptb_word_id_dict.items())
 
+# Sentence list
 sentence_list = []
 # Extract frequency list
 def extract_frequencies(data):
