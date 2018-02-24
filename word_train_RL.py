@@ -60,7 +60,9 @@ def iterate(cutoff):
 
     with open('sentence_kept_list_' + str(cutoff), 'rb') as handle:
         sentence_kept_list = pickle.load(handle)
-    
+    print (sentence_kept_list)
+    print (len(sentence_kept_list))
+    exit()
     with open('p_list_' + str(cutoff), 'rb') as handle:
         p_list = pickle.load(handle)
 

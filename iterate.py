@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 # type = "active"
 # type = "active_no_weight"
 # type = "baseline"
-type = "data_active_no_weight"
+type = "active"
 
 if type == "active":
 	import word_train_RL as train
@@ -27,9 +27,9 @@ elif type == "data_active_baseline":
 prop_list = []
 for i in range(11):
 	print ("===== Cut off " + str(i * 0.1) + " =====")
-	# train.iterate(i * 0.1)
-	prop_list.append(rare_prop.iterate(path, i * 0.1))
+	train.iterate(i * 0.1)
+	# prop_list.append(rare_prop.iterate(path, i * 0.1))
 
-print (type)
-plt.plot(prop_list)
-plt.savefig("rare_proportion_" + type + '.png')
+# print (type)
+# plt.plot(prop_list)
+# plt.savefig("rare_proportion_" + type + '.png')
