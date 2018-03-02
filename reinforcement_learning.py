@@ -186,7 +186,7 @@ for i_ep in range(N_ep):
         state = state.view(1, 3)
 
         expected_state_action_values = model(state).data[0, a] + r
-        expected_state_action_values = Variable(torch.Tensor([expected_state_action_values])) # needs to be the number
+        expected_state_action_values = expected_state_action_values # needs to be the number
         # Compute Huber loss
         print (state_action_values)
         print (expected_state_action_values)
