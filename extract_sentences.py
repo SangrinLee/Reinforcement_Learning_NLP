@@ -14,8 +14,29 @@ words_num = len(ptb_dict)
 ptb_word_id_dict = ptb_dict
 ptb_id_word_dict = dict((v,k) for k,v in ptb_word_id_dict.items())
 
-# Sentence list
-sentence_list = []
+# Extract sentence list
+def extract_sentence_list(data):
+	# Sentence list
+	sentence_list = []
+
+	# Number of words in data
+	data_len = len(data)
+
+	# id for <eos>
+	eos_idx = ptb_dict['<eos>']
+
+	# Indices in data corresponding to <eos>
+	eos_list = np.where(data==eos_idx)[0]
+
+	# Extract sentences
+	eos_idx_prev = 0
+	for eos_idx_curr in eos_list:
+		sentence = data[eos_idx_prev:eos_idx_curr]
+		sentence_list.append(sentence)
+		eos_idx_prev = eos_idx_curr+1
+
+	return sentence_list
+
 # Extract frequency list
 def extract_frequencies(data):
     # Number of words in data
@@ -28,8 +49,6 @@ def extract_frequencies(data):
     eos_list = np.where(data==eos_idx)[0]
 
     # Extract sentences
-
-
     eos_idx_prev = 0
     for eos_idx_curr in eos_list:
         sentence = data[eos_idx_prev:eos_idx_curr]
