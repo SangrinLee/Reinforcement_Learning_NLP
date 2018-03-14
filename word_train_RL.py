@@ -186,54 +186,32 @@ val_bsz = 5
 # train_data = batchify(train_data_array, args.batch_size)
 val_data = batchify(val_data_array, val_bsz)
 
-def train(model, sentence_kept_list):
+def train(w_t_model, sentence_kept_list):
     # Turn on training mode which enables dropout.
     # Built-in function, has effect on dropout and batchnorm
-    model.train()
+    w_t_model.train()
     total_loss = 0
     start_time = time.time()
-    hidden = model.init_hidden(args.batch_size)
-
-    # batch_length = train_data_array.size // args.batch_size
-    
+    hidden = w_t_model.init_hidden(args.batch_size)
 
     for i in range(len(sentence_kept_list)):
         train_data = sentence_kept_list[i].reshape(1, -1)
 
-
-    # for batch, i in enumerate(range(1, train_data.shape[1] - 1, args.bptt)):
-    #     # returns Variables
         data, targets = get_batch(train_data, 1)
         
         if not args.bidirectional:
-            hidden = model.init_hidden(args.batch_size)
+            hidden = w_t_model.init_hidden(args.batch_size)
         else:
             hidden = repackage_hidden(hidden)
-        model.zero_grad()
-        # print ("----- test -2 -----")
-        # print (type(train_data))
-        # print ("----- test -1 -----")
-        # print (train_data)
-        # print ("----- test 0 -----")
-        # print (data)
-        # print ("----- test 1 -----")
-        # print (data.size())
-        # print ("----- test 2 -----")
-        # print (len(hidden))
+        w_t_model.zero_grad()
 
-        output, hidden = model(data, hidden)
-        # print ("----- test 3 -----")
-        # print (output.size())
-        # print ("----- test 4 -----")
-        # print (len(hidden))
+        output, hidden = w_t_model(data, hidden)
 
-        # loss = criterion(output, targets)
         loss = criterion(output, targets)
-
         loss.backward()
 
-        torch.nn.utils.clip_grad_norm(model.parameters(), args.clip)
-        for p in model.parameters():
+        torch.nn.utils.clip_grad_norm(w_t_model.parameters(), args.clip)
+        for p in w_t_model.parameters():
             p.data.add_(-lr, p.grad.data)   # (scalar multiplier, other tensor)
 
         total_loss += loss.data
@@ -247,16 +225,16 @@ def train(model, sentence_kept_list):
 
             total_loss = 0
             start_time = time.time()
-            
-    return model
+
+    return w_t_model
 
 # Uses training data to generate predictions, calculate loss based on validation/testing data
 # Not using bptt
-def evaluate(model):
+def evaluate(w_t_model):
     # Turn on evaluation mode which disables dropout.
-    model.eval()
+    w_t_model.eval()
     total_loss = 0
-    hidden = model.init_hidden(val_bsz)
+    hidden = w_t_model.init_hidden(val_bsz)
     start_time = time.time()
 
     batch_length = val_data_array.size // val_bsz
@@ -265,11 +243,11 @@ def evaluate(model):
         data, targets = get_batch(val_data, i)
 
         if not args.bidirectional:
-            hidden = model.init_hidden(val_bsz)
+            hidden = w_t_model.init_hidden(val_bsz)
         else:
             hidden = repackage_hidden(hidden)
 
-        output, hidden = model(data, hidden)
+        output, hidden = w_t_model(data, hidden)
         loss = criterion(output, targets)
         total_loss += loss.data
 
@@ -285,40 +263,3 @@ def evaluate(model):
 # Loop over epochs.
 lr = args.lr
 best_val_loss = None
-
-# Training Part
-# At any point you can hit Ctrl + C to break out of training early.
-# arr1 = []
-# try:
-
-#     for epoch in range(args.load_epochs+1, args.epochs+args.load_epochs+1):
-#         epoch_start_time = time.time()
-#         train()
-        
-#         val_loss = evaluate(model)
-#         print('-' * 89)
-#         print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} |'.format(
-#             epoch, (time.time() - epoch_start_time),
-#             val_loss))
-#         print('-' * 89)
-
-#         # Save the model if the validation loss is the best we've seen so far.
-#         if not best_val_loss or val_loss < best_val_loss:
-#             with open(path + '/{}_Epoch{}_BatchSize{}_Dropout{}_LR{}_HiddenDim{}.pt'.format(
-#                name, args.load_epochs+args.epochs, args.batch_size, args.dropout, args.lr, args.nhid), 'wb') as f:
-#                 torch.save(model, f)
-#             best_val_loss = val_loss
-#         else:
-#             # Anneal the learning rate if no improvement has been seen in the validation dataset.
-#             lr /= 4.0
-
-    
-
-# except KeyboardInterrupt:
-#    print('-' * 89)
-#    print('Exiting from training early')
-
-#Load the best saved model.
-# with open(path + '/{}_Epoch{}_BatchSize{}_Dropout{}_LR{}_HiddenDim{}.pt'.format(
-#                name, args.load_epochs+args.epochs, args.batch_size, args.dropout, args.lr, args.nhid), 'rb') as f:
-#     model = torch.load(f)

@@ -52,7 +52,10 @@ def create_feature(data, uni_seen_list, bi_seen_list, tri_seen_list):
 			tri_seen_list.append(tri)
 	prop_tri_unseen = num_tri_unseen / num_tri # proportion of unseen trigram words
 
-	input_feature = torch.Tensor(np.array([prop_uni_unseen, prop_bi_unseen, prop_tri_unseen]))
+    # create tensor variable
+	input_feature = Variable(torch.Tensor(np.array([prop_uni_unseen, prop_bi_unseen, prop_tri_unseen])))
+	input_feature = input_feature.view(-1, 3)
+
 	return input_feature, uni_seen_list, bi_seen_list, tri_seen_list
     
 # Reinforcement learning -------------------------------------------------------------------------------------------
@@ -100,23 +103,20 @@ model = DQN(
 # Train LSTM
 import word_train_RL as w_t_RL
 
-def train_LSTM(dataset, model):
-    w_t_RL.model = model
-    w_t_RL.sentence_kept_list = dataset # dataset to be trained
-    return w_t_RL.train(model, dataset)
+def train_LSTM(dataset, w_t_model):
+    return w_t_RL.train(w_t_model, dataset)
 
-def evaluate_LSTM(model):
-	val_loss = w_t_RL.evaluate(model)
-	
-	return val_loss
+def evaluate_LSTM(w_t_model):
+	return w_t_RL.evaluate(w_t_model)
 
 # Train DQN
-budget = 5000        # Max. number of data that can be selected for language modeling
+budget = 0.25 * len(sentence_list)        # Max. number of data that can be selected for language modeling
 dataset_train = []   # Stores batchified sentences selected for language modeling
 replay_memory = []	 # Stores the transition(State, Action, Reward, Next State) for the Q-Learning
-
+gamma = 0.8
 N_ep = 10  # Number of episodes
 
+# Loop over episodes
 for i_ep in range(N_ep):
 	# select the batchified data to be trained
     dataset = select_batch(sentence_list)
@@ -124,84 +124,85 @@ for i_ep in range(N_ep):
     # Initialize LSTM model, allocate the cuda memory
     model_LSTM = MyLSTM(n_letters, hidden_size_LSTM, nlayers_LSTM, True, True, hidden_dropout_prob_LSTM, bidirectional_LSTM, batch_size_LSTM, cuda_LSTM)
     model_LSTM.cuda()
-    optimizer = optim.RMSprop(model.parameters())
+
+    optimizer = optim.RMSprop(model.parameters()) # deleted
     torch.save(model_LSTM.state_dict(), 'prev.pt')
 
-    uni_seen_list = [] # Initialize uni unseen list
-    bi_seen_list = [] # Initialize bi unseen list
-    tri_seen_list = [] # Initialize tri unseen list
+    uni_seen_list = [] # Initialize unigram unseen list
+    bi_seen_list = [] # Initialize bigram unseen list
+    tri_seen_list = [] # Initialize trigram unseen list
 
     idx = 0
     for data in dataset:
         # Construct the state(how different our input is from the the dataset train, represented as scalar value)
         state, uni_seen_list, bi_seen_list, tri_seen_list = create_feature(data, uni_seen_list, bi_seen_list, tri_seen_list)
-        
-        # create tensor variable
-        state = Variable(state)
-        state = state.view(1, 3)
 
         # Action selection, returns 0(skip) or 1(train)
-        a = model(state).data.max(1)[1]
+        model_output = model(state).data
+        action = model_output.max(1)[1]
 
         # Extract the value from the tensor
-        a = a[0, 0]
-        
+        action = action[0, 0]
+
         # save the model
         torch.save(model_LSTM.state_dict(), 'prev.pt')
+        loss_prev = evaluate_LSTM(model_LSTM)
 
-        if a == 1:
+        if action == 1:
             dataset_train.append(data)
-        
+            
             # train LSTM based on dataset_labelled            
             model_LSTM = train_LSTM(dataset_train, model_LSTM)
-           
+        
         # Find difference in loss after training
-        torch.save(model_LSTM.state_dict(), 'curr.pt')
+        # torch.save(model_LSTM.state_dict(), 'curr.pt')
 
         loss_curr = evaluate_LSTM(model_LSTM)
         
-        model_LSTM.load_state_dict(torch.load('prev.pt'))
-        loss_prev = evaluate_LSTM(model_LSTM)
-        model_LSTM.load_state_dict(torch.load('curr.pt'))
-        
-        r = loss_prev - loss_curr # Reward
-        print ("trainset data", data)
-        print ("reward", loss_prev, loss_curr, r)
+        reward = loss_prev - loss_curr # Reward
+        print ("#idx", idx, ", loss_prev, loss_cur, reward :", loss_prev, loss_curr, reward)
+
         if len(dataset_train) == budget:
-            replay_memory.append([state,a,r])
+            replay_memory.append([state,action,reward,"terminal"])
             break;
 
-        replay_memory.append([state,a,r])
+        # Construct the next state(how different our input is from the dataset train, represented as scalar value)
+        next_state, _, _, _ = create_feature(data, uni_seen_list, bi_seen_list, tri_seen_list)
+        replay_memory.append([state,action,reward, next_state])
 
         # Train Q Learning
-        state_action_values = model(state).data[0, a]
-        state_action_values = Variable(torch.Tensor([state_action_values]))
+        state_action_values = model_output[0, action]
+        state_action_values = Variable(torch.Tensor([state_action_values]), requires_grad = True)
 
+        # Select next data
         data = dataset[idx+1]
-
-        # Construct the state(how different our input is from the the dataset train, represented as scalar value)
-        state, _, _, _ = create_feature(data, uni_seen_list, bi_seen_list, tri_seen_list)
-        # create tensor variable
-        state = Variable(state)
-        state = state.view(1, 3)
-
-        expected_state_action_values = model(state).data[0, a] + r
-        expected_state_action_values = expected_state_action_values # needs to be the number
-        # Compute Huber loss
-        print (state_action_values)
-        print (expected_state_action_values)
-        print (type(state_action_values))
-        print (type(expected_state_action_values))
-        # exit()
-
-        loss = F.smooth_l1_loss(state_action_values, expected_state_action_values)
-
         
+        next_model_output = model(next_state).data
+        # next_action = next_model_output.max(1)[1]
+
+        next_state_action_value = Variable(torch.zeros(1))
+        next_state_action_value[0] = next_model_output.max(1)[0]
+
+        # Extract the value from the tensor
+        # next_action = next_action[0, 0]
+        expected_state_action_values = gamma * next_state_action_value + reward
+
+        # print ("state-action value, expected state-action values :", state_action_values, expected_state_action_values)
+        # print (type(state_action_values), type(expected_state_action_values))
+        print ("reward : ", reward)
+        # Compute Huber loss
+        loss = F.smooth_l1_loss(state_action_values, expected_state_action_values)
+        # print ("Huber loss : ", loss)
+
         # Optimize the model
         optimizer.zero_grad()
         loss.backward()
-
         optimizer.step()
+
+        # replay memory
+                
+        # torch.save(model_LSTM.state_dict(), 'curr.pt')
 
         # increase the index of the dataset
         idx += 1
+
