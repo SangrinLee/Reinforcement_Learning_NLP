@@ -19,7 +19,7 @@ import chainer
 # Hyper-parameters
 #################################################
 parser = argparse.ArgumentParser(description='PyTorch PennTreeBank Character-Level LSTM Model')
-parser.add_argument('--nhid', type=int, default=128,
+parser.add_argument('--nhid', type=int, default=64,
                     help='number of hidden units per layer')
 parser.add_argument('--nlayers', type=int, default=2,
                     help='number of layers')
@@ -56,8 +56,7 @@ sentence_kept_list = []
 
 train_data_array = es.train
 val_data_array = es.val
-
-print (len(train_data_array), len(val_data_array))
+val_data_array = val_data_array[len(val_data_array)//2:]
 
 n_letters = len(es.ptb_word_id_dict)
 n_categories = len(es.ptb_word_id_dict)
@@ -180,11 +179,13 @@ val_bsz = 5
 # train_data = batchify(train_data_array, args.batch_size)
 val_data = batchify(val_data_array, val_bsz)
 
-def train(w_t_model, sentence_kept_list):
+def train(w_t_model, sentence_kept_list, epoch, num):
     # Turn on training mode which enables dropout.
     # Built-in function, has effect on dropout and batchnorm
+    write_file = open('result/' + str(num) + '.txt', "a", encoding='UTF-8', newline='')
     w_t_model.train()
     total_loss = 0
+    cur_loss = 0
     start_time = time.time()
     hidden = w_t_model.init_hidden(args.batch_size)
 
@@ -202,30 +203,34 @@ def train(w_t_model, sentence_kept_list):
         output, hidden = w_t_model(data, hidden)
 
         loss = criterion(output, targets)
+        # loss = criterion(output, targets) * (1/p_list[i])
         loss.backward()
 
         torch.nn.utils.clip_grad_norm(w_t_model.parameters(), args.clip)
         for p in w_t_model.parameters():
             p.data.add_(-lr, p.grad.data)   # (scalar multiplier, other tensor)
 
-        # total_loss += loss.data
-        # if i % args.log_interval == 0 and i > 0:
-        #     cur_loss = total_loss[0] / args.log_interval
-        #     elapsed = time.time() - start_time
-        #     print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.2f} | ms/batch {:5.2f} | '
-        #           'loss {:5.2f} | ppl {:5.2f} |'.format(
-        #            epoch, i, train_data.shape[1] // args.bptt, lr,
-        #            elapsed * 1000 / args.log_interval, cur_loss, math.exp(cur_loss)))
+        total_loss += loss.data
+        if i % args.log_interval == 0 and i > 0:
+            cur_loss = total_loss[0] / args.log_interval
+            elapsed = time.time() - start_time
+            print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.2f} | ms/batch {:5.2f} | '
+                  'loss {:5.2f} | ppl {:5.2f} |'.format(
+                   epoch, i, train_data.shape[1] // args.bptt, lr,
+                   elapsed * 1000 / args.log_interval, cur_loss, math.exp(cur_loss)))
 
-        #     total_loss = 0
-        #     start_time = time.time()
-
+            total_loss = 0
+            start_time = time.time()
+    write_file.write(str(epoch) + "," + str(cur_loss) + "," + str(math.exp(cur_loss)) + "\n")
+    write_file.close()
     return w_t_model
 
 # Uses training data to generate predictions, calculate loss based on validation/testing data
 # Not using bptt
-def evaluate(w_t_model):
+def evaluate(w_t_model, num):
     # Turn on evaluation mode which disables dropout.
+    write_file2 = open('result/r_' + str(num) + '.txt', "a", encoding='UTF-8', newline='') 
+    
     w_t_model.eval()
     total_loss = 0
     hidden = w_t_model.init_hidden(val_bsz)
@@ -251,7 +256,10 @@ def evaluate(w_t_model):
                   .format(batch, val_data.shape[1] // args.bptt, lr,
                           elapsed * 1000 / (args.log_interval)))
             start_time = time.time()
-        
+    
+    write_file2.write(str(total_loss[0] / (batch_length / args.bptt)) + "\n")
+    
+    write_file2.close()
     return total_loss[0] / (batch_length / args.bptt)
 
 # Loop over epochs.
