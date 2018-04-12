@@ -172,6 +172,8 @@ for i_ep in range(N_ep):
 
         # Train Q Learning
         state_action_values = model_output[0, action]
+        print (state_action_values)
+        exit()
         state_action_values = Variable(torch.Tensor([state_action_values]), requires_grad = True)
 
         # Select next data

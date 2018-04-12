@@ -61,7 +61,7 @@ def create_feature(data, uni_seen_list, bi_seen_list, tri_seen_list):
 # Reinforcement learning -------------------------------------------------------------------------------------------
 import torch.nn as nn
 from torch.autograd import Variable
-from word_lstm_model import MyLSTM
+from word_lstm_model_check import MyLSTM
 import torch.nn.functional as F
 import copy
 
@@ -99,9 +99,9 @@ model = DQN(
     output_dim = output_dim, \
     hidden_size = hidden_size, \
     hidden_dropout_prob = hidden_dropout_prob)
-    
+
 # Train LSTM
-import word_train_RL as w_t_RL
+import word_train_RL_check as w_t_RL
 
 def train_LSTM(dataset, w_t_model):
     return w_t_RL.train(w_t_model, dataset)
@@ -118,12 +118,9 @@ def Q_learning(replay_memory):
         model_output = model(state).data
         
         # Train Q Learning
-        state_action_values = model_output
+        state_action_values = model_output[0][0]
         state_action_values = Variable(torch.Tensor([state_action_values]), requires_grad = True)
 
-        # Select next data
-        data = dataset[idx+1]
-        
         next_model_output = model(next_state).data
         
         # Next state value
@@ -136,7 +133,7 @@ def Q_learning(replay_memory):
 
         # print ("state-action value, expected state-action values :", state_action_values, expected_state_action_values)
         # print (type(state_action_values), type(expected_state_action_values))
-        print ("reward : ", reward)
+        # print ("reward : ", reward)
         # Compute Huber loss
         loss = F.smooth_l1_loss(state_action_values, expected_state_action_values)
         # print ("Huber loss : ", loss)
@@ -155,9 +152,10 @@ N_ep = 10       # Number of episodes
 N_options = 5   # Number of options to choose from for training
 
 # Loop over episodes
-for i_ep in range(N_ep):
+for i_ep in range(N_ep):    
+    write_file = open('reward_' + str(i_ep) + '.txt', "w", encoding='UTF-8', newline='')
 
-	# select the batchified data to be trained
+    # select the batchified data to be trained
     dataset = select_batch(sentence_list)
 
     # Initialize LSTM model, allocate the cuda memory
@@ -172,6 +170,7 @@ for i_ep in range(N_ep):
     tri_seen_list = [] # Initialize trigram unseen list
 
     idx = 0
+	# Total length of sentences = 2958
     for j in range(len(dataset)//N_options):
     
         # Replay memory
@@ -193,19 +192,22 @@ for i_ep in range(N_ep):
             
             # State value
             model_output = model(state).data
-            state_value_list.append(model_output)
+            state_value_list.append(model_output[0][0])
             
         # Replay memory
         if j > 0:
-            replay_memory.append([state_prev,reward_prev,state])
+            replay_memory.append([state_prev, reward_prev, state])
 
-        # Choose data to train on
+        # Choose data to train 
+        # print ("# state_value_list")
+
+        # print (state_value_list)
         choice = np.argmax(state_value_list)
 
         # Evaluate previous loss
         loss_prev = evaluate_LSTM(model_LSTM)
 
-        dataset_train.append(data[choice])
+        dataset_train.append(data_list[choice])
         
         # train LSTM based on dataset_labelled            
         model_LSTM = train_LSTM(dataset_train, model_LSTM)
@@ -215,14 +217,18 @@ for i_ep in range(N_ep):
         
         # Difference between losses
         reward = loss_prev - loss_curr # Reward
-        print ("#idx", idx, ", loss_prev, loss_cur, reward :", loss_prev, loss_curr, reward)
+        print ("#idx", j, ", loss_prev, loss_cur, reward :", loss_prev, loss_curr, reward)
+        write_file.write(str(j) + "," + str(reward) + "\n")
 
         if j==len(dataset)//N_options-1:
             replay_memory.append([state,reward,"terminal"])
             break;
 
         # Q-learning using replay memory
-        if j % 10 == 0 and j!=0:
+        if j % 50 == 0 and j!=0:
             Q_learning(replay_memory)
 
+    write_file.close()
+    torch.save(model.state_dict(), 'DQN.pt')
 #torch.save(model_LSTM.state_dict(), 'trained_model.pt')
+
