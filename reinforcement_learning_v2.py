@@ -1,16 +1,16 @@
 import numpy as np
-import torch
-import torch.optim as optim
 import pickle
 
-from extract_sentences import train, val, ptb_dict, words_num, extract_sentence_list
+from extract_sentences import train, val, ptb_dict, extract_sentence_list
 
 # extract sentence list
 sentence_list = extract_sentence_list(train)
 sentence_list = sentence_list[:len(sentence_list)//2]
-print (len(sentence_list))
-# exit()
-# select the batchified list
+
+# extract validation data
+dataset_val = val[:len(val)//2]
+
+# Select the batchified list
 def select_batch(sentence_list):
 	# shuffle the sentence list for removing the ordering of the document
 	# this is to make independent sentences as the task is more like the sentence focused, not the document
@@ -62,11 +62,12 @@ def create_feature(data, uni_seen_list, bi_seen_list, tri_seen_list):
 	return input_feature, uni_seen_list, bi_seen_list, tri_seen_list
     
 # Reinforcement learning -------------------------------------------------------------------------------------------
+import torch
+import torch.optim as optim
 import torch.nn as nn
 from torch.autograd import Variable
-from word_lstm_model_check import MyLSTM
+from word_lstm_model import MyLSTM
 import torch.nn.functional as F
-import copy
 
 # Set up LSTM
 n_letters = len(ptb_dict)
@@ -78,15 +79,15 @@ batch_size_LSTM = 1
 cuda_LSTM = True
 
 # Set up DQN
-input_dim = 3       # Three features(unigram, bigram, trigram)
-output_dim = 1      # Either train or skip
-hidden_size = 2
+input_dim = 3 # Three features(unigram, bigram, trigram)
+output_dim = 1 # Q-Value
+hidden_size = 2 # Hidden Units
 hidden_dropout_prob = 0.2
 
 class DQN(nn.Module):
     def __init__(self, input_dim, output_dim, hidden_size=400, hidden_dropout_prob=0.2):
         super(DQN, self).__init__()
-        self.fc1 = nn.Linear(input_dim, output_dim) # input layer -> hidden layer
+        self.fc1 = nn.Linear(input_dim, output_dim) # input layer -> output layer
         
         # self.fc1 = nn.Linear(input_dim, hidden_size) # input layer -> hidden layer
         # self.fc1_drop = nn.Dropout(p=hidden_dropout_prob) # set the dropout
@@ -94,11 +95,10 @@ class DQN(nn.Module):
         
     def forward(self, x):
         x = F.sigmoid(self.fc1(x))
-        # print ("#1", x)
+        
+        # x = F.sigmoid(self.fc1(x))
         # x = self.fc1_drop(x)
         # x = self.fc2(x)
-        # print ("#2", x)
-
         return x
         
 model = DQN(
@@ -108,32 +108,17 @@ model = DQN(
     hidden_dropout_prob = hidden_dropout_prob)
 
 # Train LSTM
-import word_train_RL_check as w_t_RL
+import word_train_RL as w_t_RL
 
-def train_LSTM(dataset, w_t_model, epoch):
-    return w_t_RL.train(w_t_model, dataset, epoch, 0)
-
-def evaluate_LSTM(w_t_model):
-	return w_t_RL.evaluate(w_t_model, 0)
-    
 def Q_learning(replay_memory):
-    # print ("##### before #####")
-    # for param in model.parameters():
-    # 	print (param)
-
     for memory in replay_memory:
         state = memory[0]
         reward = memory[1]
         next_state = memory[2]
         
-        # model_output = model(state).data
         state_action_values = model(state)
-        # print ("@", state)
-        # print ("#", state_action_values)
-        # print ("#", reward)
+
         # Train Q Learning
-        # state_action_values = model_output[0][0]
-        # state_action_values = Variable(torch.Tensor([state_action_values]), requires_grad = True)
         if isinstance(next_state, str):
             expected_state_action_values = Variable(torch.zeros(1))
             expected_state_action_values[0] = reward
@@ -146,133 +131,91 @@ def Q_learning(replay_memory):
             next_state_action_value[0] = next_model_output
 
             # Extract the value from the tensor
-            # next_action = next_action[0, 0]
             expected_state_action_values = gamma * next_state_action_value + reward
 
-        # print ("state-action value, expected state-action values :", state_action_values, expected_state_action_values)
-        # print (type(state_action_values), type(expected_state_action_values))
-        # print ("reward : ", reward)
         # Compute Huber loss
-
-        # criterion = nn.CrossEntropyLoss()
-
-
         loss = F.smooth_l1_loss(state_action_values, expected_state_action_values)
-        # print ("Huber loss : ", loss)
 
         # Optimize the model
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
         
-    # print ("##### after #####")
-    # print (model)
-    # for param in model.parameters():
-        # print (param.grad.data)
-        # print ("-------------")
-        # print (param)
-    # print ("=============================")
 # Train DQN
-budget = 0.25 * len(sentence_list)        # Max. number of data that can be selected for language modeling
-replay_memory = []	 # Stores the transition(State, Action, Reward, Next State) for the Q-Learning
-gamma = 0.8
+budget = 0.25 * len(sentence_list) # Max. number of data that can be selected for language modeling
+replay_memory = [] # Stores the transition(State, Action, Reward, Next State) for the Q-Learning
+gamma = 0.8     # Discount factor
 N_ep = 10       # Number of episodes
 N_options = 5   # Number of options to choose from for training
 
 # Loop over episodes
 for i_ep in range(N_ep):    
     if i_ep > 0:
-        pretrained_dict = torch.load('DQN_' + str(i_ep-1) + '.pt')
-        model_dict = model.state_dict()
-        # 1. filter out unnecessary keys
-        pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
-        # 2. overwrite entries in the existing state dict
-        model_dict.update(pretrained_dict) 
-        # 3. load the new state dict
-        model.load_state_dict(pretrained_dict)
-       	# with open('replay_' + str(i_ep-1), 'rb') as handle:
-		    # replay_memory = pickle.load(handle)
+        # Load the new state dict of DQN model
+        model.load_state_dict(torch.load('dqn_models/DQN_' + str(i_ep-1) + '.pt'))
+        # Load the replay memory
+        with open('dqn_models/replay_memory_' + str(i_ep-1), 'rb') as handle:
+            replay_memory = pickle.load(handle)
     
-    dataset_train = []   # Stores batchified sentences selected for language modeling
-
-    write_file = open('reward_' + str(i_ep) + '.txt', "w", encoding='UTF-8', newline='')
-
-    # select the batchified data to be trained
-    dataset = select_batch(sentence_list)
+    # Initialize optimizer to update the DQN
+    optimizer = optim.RMSprop(model.parameters())
 
     # Initialize LSTM model, allocate the cuda memory
     model_LSTM = MyLSTM(n_letters, hidden_size_LSTM, nlayers_LSTM, True, True, hidden_dropout_prob_LSTM, bidirectional_LSTM, batch_size_LSTM, cuda_LSTM)
     model_LSTM.cuda()
 
-    optimizer = optim.RMSprop(model.parameters(), ) # deleted
-    torch.save(model_LSTM.state_dict(), 'prev.pt')
-
+    dataset = select_batch(sentence_list) # Select the batchified data to be trained
+    dataset_train = [] # Stores batchified sentences selected for language modeling
     uni_seen_list = [] # Initialize unigram unseen list
     bi_seen_list = [] # Initialize bigram unseen list
     tri_seen_list = [] # Initialize trigram unseen list
-    print (len(dataset))
-    idx = 0
-	# Total length of sentences = 2958
-    for j in range(len(dataset)//N_options):
-    
-        # Replay memory
-        if j > 0:
-            state_prev = state
-            reward_prev = reward
-    
-        data_list = []
-        state_value_list = []
 
-        for k in range(N_options):
-            data = dataset[j*N_options+k]
+    for i in range(len(dataset)//N_options):
+        state_value_list = [] # Initialize state value list
+        data_list = [] # Initialize data list
+
+        for j in range(N_options):
+            data = dataset[i*N_options+j]
             data_list.append(data)
-            if k!=N_options-1:
+            if j != N_options-1:
                 # Construct the state(how different our input is from the the dataset train, represented as scalar value)
                 state, _,_,_ = create_feature(data, uni_seen_list, bi_seen_list, tri_seen_list)
             else:
                 state, uni_seen_list, bi_seen_list, tri_seen_list = create_feature(data, uni_seen_list, bi_seen_list, tri_seen_list)
             
-            # State value
+            # Store each state value into state value list
             model_output = model(state).data
             state_value_list.append(model_output[0][0])
             
-        # Replay memory
-        if j > 0:
+        # Stores transitions into the replay memory
+        if i != 0:
             replay_memory.append([state_prev, reward_prev, state])
 
-        # Choose data to train 
-        # print ("# state_value_list")
+        choice = np.argmax(state_value_list) # Choose data with highest state value to train 
+        dataset_train.append(data_list[choice]) # Add selected data into train dataset
 
-        # print (state_value_list)
-        choice = np.argmax(state_value_list)
+        loss_prev = w_t_RL.evaluate(model_LSTM, dataset_val, i_ep) # Evaluate previous loss
+        model_LSTM, _, _ = w_t_RL.train(model_LSTM, dataset_train, i_ep) # train LSTM based on dataset_labelled
+        loss_curr = w_t_RL.evaluate(model_LSTM, dataset_val, i_ep) # Evaluate current loss
+        reward = loss_prev - loss_curr # Reward(Difference between previous loss and current loss)
 
-        # Evaluate previous loss
-        loss_prev = evaluate_LSTM(model_LSTM)
+        print ("#", i, ", loss_prev, loss_cur, reward :", loss_prev, loss_curr, reward)
 
-        dataset_train.append(data_list[choice])
-        
-        # train LSTM based on dataset_labelled            
-        model_LSTM = train_LSTM(dataset_train, model_LSTM, i_ep)
-
-        # Evaluate current loss
-        loss_curr = evaluate_LSTM(model_LSTM)
-        
-        # Difference between losses
-        reward = loss_prev - loss_curr # Reward
-        print ("#idx", j, ", loss_prev, loss_cur, reward :", loss_prev, loss_curr, reward)
-        write_file.write(str(j) + "," + str(reward) + "\n")
-
-        if j==len(dataset)//N_options-1:
+        # Save replay memory with "terminal" state when dataset is exhausted
+        if i == len(dataset)//N_options-1:
             replay_memory.append([state,reward,"terminal"])
             break;
 
+        state_prev = state # Save previous state
+        reward_prev = reward # Save previous reward
+
         # Q-learning using replay memory
-        if j % 100 == 0 and j!=0:
+        if i % 1 == 0 and i != 0:
             Q_learning(replay_memory)
 
-    write_file.close()
-    torch.save(model.state_dict(), 'DQN_' + str(i_ep) + '.pt')
-    with open('replay_' + str(i_ep), 'wb') as handle:
+    # Save the state dict of DQN model
+    torch.save(model.state_dict(), 'dqn_models/DQN_' + str(i_ep) + '.pt')
+    # Save the replay memory
+    with open('dqn_models/replay_memory_' + str(i_ep), 'wb') as handle:
     	pickle.dump(replay_memory, handle, protocol=pickle.HIGHEST_PROTOCOL)
-#torch.save(model_LSTM.state_dict(), 'trained_model.pt')
 
