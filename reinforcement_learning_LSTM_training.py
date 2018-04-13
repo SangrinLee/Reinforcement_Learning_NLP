@@ -27,30 +27,28 @@ def run(sample_num, isRandom):
 	# Load the data based on selection(sampled data or random data)
 	if not isRandom:
 		with open('sampled_data/data_sampled_dqn_' + str(sample_num),'rb') as b:
-			dataset_train=pickle.load(b)  
+			dataset_train=pickle.load(b)
+		write_loss = open('sampled_data/data_sampled_dqn_loss_' + str(sample_num) + '.txt', "w", encoding='UTF-8')
 	else:
 		with open('sampled_data/data_sampled_random_' + str(sample_num),'rb') as b:
 			dataset_train=pickle.load(b)  
+		write_loss = open('sampled_data/data_sampled_random_loss_' + str(sample_num) + '.txt', "w", encoding='UTF-8')
 
 	# LSTM Training Part
 	# At any point, you can hit Ctrl + C to break out of training early.
 	try:
-	    for epoch in range(n_epoch):
-	        epoch_start_time = time.time()
-	        
-	        w_t_RL.train(model_LSTM, dataset_train, epoch) # Train LSTM based on dataset_labelled
-	        val_loss = w_t_RL.evaluate(model_LSTM, dataset_val, epoch) # Evaluate current loss
+	    for epoch in range(1, n_epoch+1):
+	    	print ("# Epoch", epoch)
 
-	        print('-' * 89)
-	        print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} |'.format(
-	            epoch, (time.time() - epoch_start_time),
-	            val_loss))
-	        print('-' * 89)
+	        model_LSTM, train_loss, ppl = w_t_RL.train(model_LSTM, dataset_train, epoch) # Train LSTM based on dataset_labelled
+	        val_loss = w_t_RL.evaluate(model_LSTM, dataset_val, epoch) # Evaluate current loss
+	        write_loss.write(str(epoch) + "," + str(train_loss) + "," + str(ppl) + "," + str(val_loss) + "\n")
 
 	except KeyboardInterrupt:
 	   print('-' * 89)
 	   print('Exiting from training early')
 
+	write_loss.close()
 
 for sample in range(N_samples):
 	run(sample, False) # Train the LSTM with data sampled from DQN

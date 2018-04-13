@@ -137,7 +137,7 @@ def sample(sample_num):
 
 
 for sample in range(N_samples):
-    print ("# Sample No.", sample)
+    print ("# Sample", sample)
     sample(sample)
 
 # from reinforcement_learning_sampling_train import *
