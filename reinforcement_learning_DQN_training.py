@@ -88,14 +88,12 @@ class DQN(nn.Module):
     def __init__(self, input_dim, output_dim, hidden_size=400, hidden_dropout_prob=0.2):
         super(DQN, self).__init__()
         self.fc1 = nn.Linear(input_dim, output_dim) # input layer -> output layer
-        
         # self.fc1 = nn.Linear(input_dim, hidden_size) # input layer -> hidden layer
         # self.fc1_drop = nn.Dropout(p=hidden_dropout_prob) # set the dropout
         # self.fc2 = nn.Linear(hidden_size, output_dim) # hidden layer -> output layer
         
     def forward(self, x):
         x = F.sigmoid(self.fc1(x))
-        
         # x = F.sigmoid(self.fc1(x))
         # x = self.fc1_drop(x)
         # x = self.fc2(x)
@@ -123,18 +121,15 @@ def Q_learning(replay_memory):
             expected_state_action_values = Variable(torch.zeros(1))
             expected_state_action_values[0] = reward
         else:
-
-            next_model_output = model(next_state).data
-            
+            next_model_output = model(next_state).data            
             # Next state value
             next_state_action_value = Variable(torch.zeros(1))
             next_state_action_value[0] = next_model_output
 
             # Extract the value from the tensor
             expected_state_action_values = gamma * next_state_action_value + reward
-
-        # Compute Huber loss
-        loss = F.smooth_l1_loss(state_action_values, expected_state_action_values)
+        
+        loss = F.smooth_l1_loss(state_action_values, expected_state_action_values) # Compute Huber loss
 
         # Optimize the model
         optimizer.zero_grad()

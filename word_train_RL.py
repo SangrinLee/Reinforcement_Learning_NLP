@@ -26,9 +26,6 @@ parser.add_argument('--log-interval', type=int, default=100, metavar='N',
                     help='report interval')
 args = parser.parse_args()
 
-#############################################
-# Initialize criterion
-#############################################
 criterion = nn.CrossEntropyLoss()
 criterion.cuda()
 
@@ -114,5 +111,4 @@ def evaluate(w_t_model, val_data_array, epoch):
         loss = criterion(output, targets)
         total_loss += loss.data
     
-
     return total_loss[0] / (batch_length / args.bptt)
