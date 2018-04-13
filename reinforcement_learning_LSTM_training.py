@@ -1,6 +1,7 @@
 import numpy as np
 import time
 import pickle
+import csv
 from word_lstm_model import MyLSTM
 import word_train_RL as w_t_RL
 
@@ -28,26 +29,29 @@ def run(sample_num, isRandom):
 	if not isRandom:
 		with open('sampled_data/data_sampled_dqn_' + str(sample_num),'rb') as b:
 			dataset_train=pickle.load(b)
-		write_loss = open('sampled_data/data_sampled_dqn_loss_' + str(sample_num) + '.txt', "w", encoding='UTF-8')
+		write_loss = open('sampled_data/data_sampled_dqn_loss_' + str(sample_num) + '.csv','w', encoding='UTF-8', newline='')
 	else:
 		with open('sampled_data/data_sampled_random_' + str(sample_num),'rb') as b:
 			dataset_train=pickle.load(b)  
-		write_loss = open('sampled_data/data_sampled_random_loss_' + str(sample_num) + '.txt', "w", encoding='UTF-8')
+		write_loss = open('sampled_data/data_sampled_random_loss_' + str(sample_num) + '.csv','w', encoding='UTF-8', newline='')
+
+	writer = csv.DictWriter(write_loss, fieldnames=['Epoch', 'Train_loss', 'Train_ppl', 'Val_loss'])
 
 	# LSTM Training Part
 	# At any point, you can hit Ctrl + C to break out of training early.
 	try:
-	    for epoch in range(1, n_epoch+1):
-	    	print ("# Epoch", epoch)
+		for epoch in range(1, n_epoch+1):
+			print ("# Epoch", epoch)
 
-	        model_LSTM, train_loss, ppl = w_t_RL.train(model_LSTM, dataset_train, epoch) # Train LSTM based on dataset_labelled
-	        val_loss = w_t_RL.evaluate(model_LSTM, dataset_val, epoch) # Evaluate current loss
-	        write_loss.write(str(epoch) + "," + str(train_loss) + "," + str(ppl) + "," + str(val_loss) + "\n")
+			model_LSTM, train_loss, train_ppl = w_t_RL.train(model_LSTM, dataset_train, epoch) # Train LSTM based on dataset_labelled
+			val_loss = w_t_RL.evaluate(model_LSTM, dataset_val, epoch) # Evaluate current loss
+			writer.writerow({'Epoch':str(epoch),'Train_loss':str(train_loss),'Train_ppl':str(train_ppl),'Val_loss':str(val_loss)})
 
 	except KeyboardInterrupt:
 	   print('-' * 89)
 	   print('Exiting from training early')
 
+	# write_loss.close()
 	write_loss.close()
 
 for sample in range(N_samples):
