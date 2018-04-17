@@ -127,7 +127,7 @@ def Q_learning(replay_memory):
             next_state_action_value[0] = next_model_output
 
             # Extract the value from the tensor
-            expected_state_action_values = gamma * next_state_action_value + reward
+            # expected_state_action_values = gamma * next_state_action_value + reward
             expected_state_action_values = Variable(torch.FloatTensor([reward]))
           
         loss = F.smooth_l1_loss(state_action_values, expected_state_action_values) # Compute Huber loss
