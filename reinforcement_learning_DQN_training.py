@@ -5,12 +5,12 @@ from extract_sentences import train, val, ptb_dict, extract_sentence_list
 
 # extract sentence list
 sentence_list = extract_sentence_list(train)
-sentence_list = sentence_list[:len(sentence_list)//2]
+sentence_list = sentence_list[:len(sentence_list)//2]   # Latter half used for DQN training
 
 # extract validation data
 dataset_val = val[:len(val)//2]
 
-# Select the batchified list
+# Construct the batchified list
 def select_batch(sentence_list):
 	# shuffle the sentence list for removing the ordering of the document
 	# this is to make independent sentences as the task is more like the sentence focused, not the document
@@ -112,12 +112,16 @@ def Q_learning(replay_memory):
     for memory in replay_memory:
         state = memory[0]
         reward = memory[1]
-        next_state = memory[2]
+        #next_state = memory[2]
         
         state_action_values = model(state)
 
+        # Not Q Learning
+        expected_state_action_values = Variable(torch.FloatTensor([reward]))
+        
         # Train Q Learning
-        if isinstance(next_state, str):
+        '''
+        if isinstance(next_state, str):     # If terminal
             expected_state_action_values = Variable(torch.zeros(1))
             expected_state_action_values[0] = reward
         else:
@@ -129,6 +133,7 @@ def Q_learning(replay_memory):
             # Extract the value from the tensor
             # expected_state_action_values = gamma * next_state_action_value + reward
             expected_state_action_values = Variable(torch.FloatTensor([reward]))
+        '''
           
         loss = F.smooth_l1_loss(state_action_values, expected_state_action_values) # Compute Huber loss
 
@@ -144,6 +149,9 @@ gamma = 0.8     # Discount factor
 N_ep = 10       # Number of episodes
 N_options = 5   # Number of options to choose from for training
 
+# Initialize optimizer to update the DQN
+optimizer = optim.RMSprop(model.parameters())
+
 # Loop over episodes
 for i_ep in range(N_ep):    
     if i_ep > 0:
@@ -152,43 +160,52 @@ for i_ep in range(N_ep):
         # Load the replay memory
         with open('dqn_models/replay_memory_' + str(i_ep-1), 'rb') as handle:
             replay_memory = pickle.load(handle)
-    
-    # Initialize optimizer to update the DQN
-    optimizer = optim.RMSprop(model.parameters())
 
     # Initialize LSTM model, allocate the cuda memory
     model_LSTM = MyLSTM(n_letters, hidden_size_LSTM, nlayers_LSTM, True, True, hidden_dropout_prob_LSTM, bidirectional_LSTM, batch_size_LSTM, cuda_LSTM)
     model_LSTM.cuda()
 
-    dataset = select_batch(sentence_list) # Select the batchified data to be trained
-    dataset_train = [] # Stores batchified sentences selected for language modeling
-    uni_seen_list = [] # Initialize unigram unseen list
-    bi_seen_list = [] # Initialize bigram unseen list
-    tri_seen_list = [] # Initialize trigram unseen list
+    dataset = select_batch(sentence_list) # Construct the batchified data from which training data will be selected
+    dataset_train = [] # Stores batchified sentences selected for language modeling (training dat)
+    
+    uni_seen_list = [] # Initialize unigram seen list
+    bi_seen_list = [] # Initialize bigram seen list
+    tri_seen_list = [] # Initialize trigram seen list
 
-    for i in range(len(dataset)//N_options):
+    for i in range(len(dataset)//N_options):        # Loop through groups of N_options options
+        
         state_value_list = [] # Initialize state value list
         data_list = [] # Initialize data list
 
-        for j in range(N_options):
-            data = dataset[i*N_options+j]
+        for j in range(N_options):  # Loop through N_options options
+            data = dataset[i*N_options+j] # Select corresponding batch
             data_list.append(data)
+            
+            # Construct the state (how different our input is from the dataset_train, represented as scalar values) w/o updating seen lists
+            state, _,_,_ = create_feature(data, uni_seen_list, bi_seen_list, tri_seen_list)
+            
+            '''
             if j != N_options-1:
-                # Construct the state(how different our input is from the the dataset train, represented as scalar value)
+                # Construct the state (how different our input is from the dataset_train, represented as scalar values)
                 state, _,_,_ = create_feature(data, uni_seen_list, bi_seen_list, tri_seen_list)
             else:
                 state, uni_seen_list, bi_seen_list, tri_seen_list = create_feature(data, uni_seen_list, bi_seen_list, tri_seen_list)
+            '''
             
             # Store each state value into state value list
             model_output = model(state).data
             state_value_list.append(model_output[0][0])
             
+        '''
         # Stores transitions into the replay memory
         if i != 0:
             replay_memory.append([state_prev, reward_prev, state])
+        '''
 
         choice = np.argmax(state_value_list) # Choose data with highest state value to train 
         dataset_train.append(data_list[choice]) # Add selected data into train dataset
+        # Update seen lists
+        state, uni_seen_list, bi_seen_list, tri_seen_list = create_feature(data_list[choice], uni_seen_list, bi_seen_list, tri_seen_list)
 
         loss_prev = w_t_RL.evaluate(model_LSTM, dataset_val, i_ep) # Evaluate previous loss
         model_LSTM, _, _ = w_t_RL.train(model_LSTM, dataset_train, i_ep) # train LSTM based on dataset_labelled
@@ -197,6 +214,7 @@ for i_ep in range(N_ep):
 
         print ("#", i, ", loss_prev, loss_cur, reward :", loss_prev, loss_curr, reward)
 
+        '''
         # Save replay memory with "terminal" state when dataset is exhausted
         if i == len(dataset)//N_options-1:
             replay_memory.append([state,reward,"terminal"])
@@ -204,6 +222,10 @@ for i_ep in range(N_ep):
 
         state_prev = state # Save previous state
         reward_prev = reward # Save previous reward
+        '''
+        
+        # Save replay memory
+        replay_memory.append([state,reward])
 
         # Q-learning using replay memory
         if i % 1 == 0 and i != 0:
