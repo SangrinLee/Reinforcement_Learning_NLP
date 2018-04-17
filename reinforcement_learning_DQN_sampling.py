@@ -11,9 +11,9 @@ from extract_sentences import train, val, ptb_dict, extract_sentence_list
 
 # extract sentence list
 sentence_list = extract_sentence_list(train)
-sentence_list = sentence_list[len(sentence_list)//2:]
+sentence_list = sentence_list[len(sentence_list)//2:]   # First half used for LSTM training
 
-# Select the batchified list
+# Construct the batchified list
 def select_batch(sentence_list):
     # shuffle the sentence list for removing the ordering of the document
     # this is to make independent sentences as the task is more like the sentence focused, not the document
@@ -100,9 +100,9 @@ def sample(sample_num, dqn_model):
     data_sampled_random = [] # Stores the data sampled randomly
 
     dataset = select_batch(sentence_list) # Select the batchified data to be fed into the DQN
-    uni_seen_list = [] # Initialize unigram unseen list
-    bi_seen_list = [] # Initialize bigram unseen list
-    tri_seen_list = [] # Initialize trigram unseen list
+    uni_seen_list = [] # Initialize unigram seen list
+    bi_seen_list = [] # Initialize bigram seen list
+    tri_seen_list = [] # Initialize trigram seen list
 
     # No. of iterations : 1467
     for i in range(len(dataset)//N_options):
@@ -113,11 +113,17 @@ def sample(sample_num, dqn_model):
         for j in range(N_options):
             data = dataset[i*N_options+j]
             data_list.append(data)
+            
+            # Construct the state (how different our input is from the dataset_train, represented as scalar values) w/o updating seen lists
+            state, _,_,_ = create_feature(data, uni_seen_list, bi_seen_list, tri_seen_list)
+            
+            '''
             if j != N_options-1:
                 # Construct the state(how different our input is from the the dataset train, represented as scalar value)
                 state, _,_,_ = create_feature(data, uni_seen_list, bi_seen_list, tri_seen_list)
             else:
                 state, uni_seen_list, bi_seen_list, tri_seen_list = create_feature(data, uni_seen_list, bi_seen_list, tri_seen_list)
+            '''
             
             # Store each state value into state value list
             model_output = model(state).data
@@ -125,6 +131,8 @@ def sample(sample_num, dqn_model):
 
         choice = np.argmax(state_value_list) # Choose data with highest state value to train 
         data_sampled_DQN.append(data_list[choice]) # Add selected data into dataset
+        # Update seen lists
+        state, uni_seen_list, bi_seen_list, tri_seen_list = create_feature(data_list[choice], uni_seen_list, bi_seen_list, tri_seen_list)
 
         choice_random = random.randint(0, N_options-1) # Choose data randomly
         data_sampled_random.append(data_list[choice_random]) # Add selected data into dataset
