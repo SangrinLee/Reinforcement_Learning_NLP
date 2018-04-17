@@ -18,22 +18,21 @@ cuda_LSTM = True
 n_epoch = 10
 
 dataset_val = val[len(val)//2:] # extract validation data
-N_samples = 5 # Number of samples to extract
 
-def run(sample_num, isRandom):
+def run(sample_num, dqn_model, isRandom):
     # Initialize LSTM model, allocate the cuda memory
 	model_LSTM = MyLSTM(n_letters, hidden_size_LSTM, nlayers_LSTM, True, True, hidden_dropout_prob_LSTM, bidirectional_LSTM, batch_size_LSTM, cuda_LSTM)
 	model_LSTM.cuda()
 
 	# Load the data based on selection(sampled data or random data)
 	if not isRandom:
-		with open('sampled_data/data_sampled_dqn_' + str(sample_num),'rb') as b:
+		with open('sampled_data/data_sampled_' + str(dqn_model) + '_' + str(sample_num),'rb') as b:
 			dataset_train=pickle.load(b)
-		write_loss = open('sampled_data/data_sampled_dqn_loss_' + str(sample_num) + '.csv','w', encoding='UTF-8', newline='')
+		write_loss = open('sampled_data/data_sampled_dqn_loss_' + str(dqn_model) + '_' + str(sample_num) + '.csv','w', encoding='UTF-8', newline='')
 	else:
-		with open('sampled_data/data_sampled_random_' + str(sample_num),'rb') as b:
+		with open('sampled_data/data_sampled_random_' + str(dqn_model) + '_' + str(sample_num),'rb') as b:
 			dataset_train=pickle.load(b)  
-		write_loss = open('sampled_data/data_sampled_random_loss_' + str(sample_num) + '.csv','w', encoding='UTF-8', newline='')
+		write_loss = open('sampled_data/data_sampled_random_loss_' + str(dqn_model) + '_' + str(sample_num) + '.csv','w', encoding='UTF-8', newline='')
 
 	writer = csv.DictWriter(write_loss, fieldnames=['Epoch', 'Train_loss', 'Train_ppl', 'Val_loss'])
 
@@ -54,6 +53,13 @@ def run(sample_num, isRandom):
 	# write_loss.close()
 	write_loss.close()
 
-for sample in range(N_samples):
-	run(sample, False) # Train the LSTM with data sampled from DQN
-	run(sample, True) # Train the LSTM with data sampled randomly
+N_samples = 2 # Number of samples to extract
+for n_sample in range(N_samples):
+	run(n_sample, 'DQN_0', False) # Train the LSTM with data sampled from DQN
+	run(n_sample, 'DQN_1', False) # Train the LSTM with data sampled from DQN
+	run(n_sample, 'DQN_2', False) # Train the LSTM with data sampled from DQN
+	run(n_sample, 'DQN_3', False) # Train the LSTM with data sampled from DQN
+	run(n_sample, 'DQN_0', True) # Train the LSTM with data sampled randomly
+	run(n_sample, 'DQN_1', True) # Train the LSTM with data sampled randomly
+	run(n_sample, 'DQN_2', True) # Train the LSTM with data sampled randomly
+	run(n_sample, 'DQN_3', True) # Train the LSTM with data sampled randomly			

@@ -5,6 +5,7 @@ from torch.autograd import Variable
 import torch.nn.functional as F
 import numpy as np
 import random
+import pickle
 
 from extract_sentences import train, val, ptb_dict, extract_sentence_list
 
@@ -72,16 +73,16 @@ hidden_dropout_prob = 0.2
 class DQN(nn.Module):
     def __init__(self, input_dim, output_dim, hidden_size=400, hidden_dropout_prob=0.2):
         super(DQN, self).__init__()
-        self.fc1 = nn.Linear(input_dim, output_dim) # input layer -> output layer
-        # self.fc1 = nn.Linear(input_dim, hidden_size) # input layer -> hidden layer
+        # self.fc1 = nn.Linear(input_dim, output_dim) # input layer -> output layer
+        self.fc1 = nn.Linear(input_dim, hidden_size) # input layer -> hidden layer
         # self.fc1_drop = nn.Dropout(p=hidden_dropout_prob) # set the dropout
-        # self.fc2 = nn.Linear(hidden_size, output_dim) # hidden layer -> output layer
+        self.fc2 = nn.Linear(hidden_size, output_dim) # hidden layer -> output layer
         
     def forward(self, x):
-        x = F.sigmoid(self.fc1(x))
         # x = F.sigmoid(self.fc1(x))
+        x = F.sigmoid(self.fc1(x))
         # x = self.fc1_drop(x)
-        # x = self.fc2(x)
+        x = self.fc2(x)
         return x
         
 model = DQN(
@@ -91,10 +92,9 @@ model = DQN(
     hidden_dropout_prob = hidden_dropout_prob)
 
 N_options = 5   # Number of options to choose from for sampling
-N_samples = 5 # Number of samples to extract
 
-def sample(sample_num):    
-    model.load_state_dict(torch.load('DQN.pt')) # Load pretraiend DQN model
+def sample(sample_num, dqn_model):    
+    model.load_state_dict(torch.load('dqn_models/' + dqn_model + '.pt')) # Load pretraiend DQN model
 
     data_sampled_DQN = [] # Stores the data sampled from the pretrained DQN model
     data_sampled_random = [] # Stores the data sampled randomly
@@ -129,15 +129,18 @@ def sample(sample_num):
         choice_random = random.randint(0, N_options-1) # Choose data randomly
         data_sampled_random.append(data_list[choice_random]) # Add selected data into dataset
 
-    with open('sampled_data/data_sampled_dqn_' + str(sample_num), 'wb') as handle:
+    with open('sampled_data/data_sampled_' + str(dqn_model) + '_' + str(sample_num), 'wb') as handle:
         pickle.dump(data_sampled_DQN, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-    with open('sampled_data/data_sampled_random_' + str(sample_num), 'wb') as handle:
+    with open('sampled_data/data_sampled_random_' + str(dqn_model) + '_' + str(sample_num), 'wb') as handle:
         pickle.dump(data_sampled_random, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
+N_samples = 2 # Number of samples to extract
+for n_sample in range(N_samples):
+    print ("# Sample", n_sample)
+    sample(n_sample, 'DQN_0')
+    sample(n_sample, 'DQN_1')
+    sample(n_sample, 'DQN_2')
+    sample(n_sample, 'DQN_3')
 
-for sample in range(N_samples):
-    print ("# Sample", sample)
-    sample(sample)
-
-# from reinforcement_learning_sampling_train import *
+from reinforcement_learning_LSTM_training import *
