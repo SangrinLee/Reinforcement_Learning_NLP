@@ -25,14 +25,15 @@ def select_batch(sentence_list):
 	return batchified_list
 
 # Create the feature by converting the sentence -> data (# of words, proportion of uni, bi, tri unseen before)
-def create_feature(data, uni_seen_list, bi_seen_list, tri_seen_list):
+def create_feature(data, uni_seen_list, bi_seen_list, tri_seen_list, doUpdate):
 	# unigram process
 	num_uni = len(data)
 	num_uni_unseen = 0
 	for uni in data:
 		if not uni in uni_seen_list:
 			num_uni_unseen += 1
-			uni_seen_list.append(uni)
+			if doUpdate:
+				uni_seen_list.append(uni)
 	prop_uni_unseen = num_uni_unseen / num_uni # proportion of unseen unigram words
 
 	# bigram process
@@ -42,7 +43,8 @@ def create_feature(data, uni_seen_list, bi_seen_list, tri_seen_list):
 		bi = list(data[i:i+2])
 		if not bi in bi_seen_list:
 			num_bi_unseen += 1
-			bi_seen_list.append(bi)
+			if doUpdate:
+				bi_seen_list.append(bi)
 	prop_bi_unseen = num_bi_unseen / num_bi # proportion of unseen bigram words
 
 	# trigram process
@@ -52,14 +54,15 @@ def create_feature(data, uni_seen_list, bi_seen_list, tri_seen_list):
 		tri = list(data[i:i+3])
 		if not tri in tri_seen_list:
 			num_tri_unseen += 1
-			tri_seen_list.append(tri)
+			if doUpdate:
+				tri_seen_list.append(tri)
 	prop_tri_unseen = num_tri_unseen / num_tri # proportion of unseen trigram words
 
     # create tensor variable
 	input_feature = Variable(torch.Tensor(np.array([prop_uni_unseen, prop_bi_unseen, prop_tri_unseen])))
 	input_feature = input_feature.view(-1, 3)
 
-	return input_feature, uni_seen_list, bi_seen_list, tri_seen_list
+	return input_feature
     
 # Reinforcement learning -------------------------------------------------------------------------------------------
 import torch
@@ -182,8 +185,8 @@ for i_ep in range(N_ep):
             data_list.append(data)
             
             # Construct the state (how different our input is from the dataset_train, represented as scalar values) w/o updating seen lists
-            state, _,_,_ = create_feature(data, uni_seen_list, bi_seen_list, tri_seen_list)
-            
+            state = create_feature(data, uni_seen_list, bi_seen_list, tri_seen_list, False)
+
             '''
             if j != N_options-1:
                 # Construct the state (how different our input is from the dataset_train, represented as scalar values)
@@ -205,7 +208,7 @@ for i_ep in range(N_ep):
         choice = np.argmax(state_value_list) # Choose data with highest state value to train 
         dataset_train.append(data_list[choice]) # Add selected data into train dataset
         # Update seen lists
-        state, uni_seen_list, bi_seen_list, tri_seen_list = create_feature(data_list[choice], uni_seen_list, bi_seen_list, tri_seen_list)
+        state = create_feature(data_list[choice], uni_seen_list, bi_seen_list, tri_seen_list, True)
 
         loss_prev = w_t_RL.evaluate(model_LSTM, dataset_val, i_ep) # Evaluate previous loss
         model_LSTM, _, _ = w_t_RL.train(model_LSTM, dataset_train, i_ep) # train LSTM based on dataset_labelled
@@ -228,7 +231,7 @@ for i_ep in range(N_ep):
         replay_memory.append([state,reward])
 
         # Q-learning using replay memory
-        if i % 1 == 0 and i != 0:
+        if i % 100 == 0 and i != 0:
             Q_learning(replay_memory)
 
     # Save the state dict of DQN model
