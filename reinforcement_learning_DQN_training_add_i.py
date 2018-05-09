@@ -1,6 +1,5 @@
 import numpy as np
 import pickle
-import random
 
 from extract_sentences import train, val, ptb_dict, extract_sentence_list
 
@@ -26,7 +25,7 @@ def select_batch(sentence_list):
 	return batchified_list
 
 # Create the feature by converting the sentence -> data (# of words, proportion of uni, bi, tri unseen before)
-def create_feature(data, uni_seen_list, bi_seen_list, tri_seen_list, doUpdate):
+def create_feature(data, uni_seen_list, bi_seen_list, tri_seen_list, i_num, doUpdate):
 	# unigram process
 	num_uni = len(data)
 	num_uni_unseen = 0
@@ -60,8 +59,8 @@ def create_feature(data, uni_seen_list, bi_seen_list, tri_seen_list, doUpdate):
 	prop_tri_unseen = num_tri_unseen / num_tri # proportion of unseen trigram words
 
     # create tensor variable
-	input_feature = Variable(torch.Tensor(np.array([prop_uni_unseen, prop_bi_unseen, prop_tri_unseen])))
-	input_feature = input_feature.view(-1, 3)
+	input_feature = Variable(torch.Tensor(np.array([prop_uni_unseen, prop_bi_unseen, prop_tri_unseen, i_num])))
+	input_feature = input_feature.view(-1, 4)
 
 	return input_feature
     
@@ -83,9 +82,9 @@ batch_size_LSTM = 1
 cuda_LSTM = True
 
 # Set up DQN
-input_dim = 3 # Three features(unigram, bigram, trigram)
-output_dim = 1 # Q-Value
-hidden_size = 2 # Hidden Units
+input_dim = 4 # Three features(unigram, bigram, trigram)
+output_dim = 1 # Q-Value (421 -> 4101)
+hidden_size = 3 # Hidden Units
 hidden_dropout_prob = 0.2
 
 class DQN(nn.Module):
@@ -150,7 +149,7 @@ def Q_learning(replay_memory):
 budget = 0.25 * len(sentence_list) # Max. number of data that can be selected for language modeling
 replay_memory = [] # Stores the transition(State, Action, Reward, Next State) for the Q-Learning
 gamma = 0.8     # Discount factor
-N_ep = 5       # Number of episodes
+N_ep = 10       # Number of episodes
 N_options = 5   # Number of options to choose from for training
 
 # Initialize optimizer to update the DQN
@@ -186,7 +185,7 @@ for i_ep in range(N_ep):
             data_list.append(data)
             
             # Construct the state (how different our input is from the dataset_train, represented as scalar values) w/o updating seen lists
-            state = create_feature(data, uni_seen_list, bi_seen_list, tri_seen_list, False)
+            state = create_feature(data, uni_seen_list, bi_seen_list, tri_seen_list, i, False)
 
             '''
             if j != N_options-1:
@@ -206,16 +205,10 @@ for i_ep in range(N_ep):
             replay_memory.append([state_prev, reward_prev, state])
         '''
 
-        epsilon_value = np.random.random()
-        if epsilon_value >= 0.9:
-            choice_random = random.randint(0, N_options-1) # Choose data randomly
-        else:
-            choice = np.argmax(state_value_list) # Choose data with highest state value to train 
-
-        # choice = np.argmax(state_value_list) # Choose data with highest state value to train 
+        choice = np.argmax(state_value_list) # Choose data with highest state value to train 
         dataset_train.append(data_list[choice]) # Add selected data into train dataset
         # Update seen lists
-        state = create_feature(data_list[choice], uni_seen_list, bi_seen_list, tri_seen_list, True)
+        state = create_feature(data_list[choice], uni_seen_list, bi_seen_list, tri_seen_list, i, True)
 
         loss_prev = w_t_RL.evaluate(model_LSTM, dataset_val, i_ep) # Evaluate previous loss
         model_LSTM, _, _ = w_t_RL.train(model_LSTM, dataset_train, i_ep) # train LSTM based on dataset_labelled

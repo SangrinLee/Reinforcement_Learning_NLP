@@ -28,49 +28,49 @@ def select_batch(sentence_list):
     return batchified_list
     
 # Create the feature by converting the sentence -> data (# of words, proportion of uni, bi, tri unseen before)
-def create_feature(data, uni_seen_list, bi_seen_list, tri_seen_list, doUpdate):
-	# unigram process
-	num_uni = len(data)
-	num_uni_unseen = 0
-	for uni in data:
-		if not uni in uni_seen_list:
-			num_uni_unseen += 1
-			if doUpdate:
-				uni_seen_list.append(uni)
-	prop_uni_unseen = num_uni_unseen / num_uni # proportion of unseen unigram words
+def create_feature(data, uni_seen_list, bi_seen_list, tri_seen_list, i_num, doUpdate):
+    # unigram process
+    num_uni = len(data)
+    num_uni_unseen = 0
+    for uni in data:
+        if not uni in uni_seen_list:
+            num_uni_unseen += 1
+            if doUpdate:
+                uni_seen_list.append(uni)
+    prop_uni_unseen = num_uni_unseen / num_uni # proportion of unseen unigram words
 
-	# bigram process
-	num_bi = len(data) - 1
-	num_bi_unseen = 0
-	for i in range(num_bi):
-		bi = list(data[i:i+2])
-		if not bi in bi_seen_list:
-			num_bi_unseen += 1
-			if doUpdate:
-				bi_seen_list.append(bi)
-	prop_bi_unseen = num_bi_unseen / num_bi # proportion of unseen bigram words
+    # bigram process
+    num_bi = len(data) - 1
+    num_bi_unseen = 0
+    for i in range(num_bi):
+        bi = list(data[i:i+2])
+        if not bi in bi_seen_list:
+            num_bi_unseen += 1
+            if doUpdate:
+                bi_seen_list.append(bi)
+    prop_bi_unseen = num_bi_unseen / num_bi # proportion of unseen bigram words
 
-	# trigram process
-	num_tri = len(data) - 2
-	num_tri_unseen = 0
-	for i in range(num_tri):
-		tri = list(data[i:i+3])
-		if not tri in tri_seen_list:
-			num_tri_unseen += 1
-			if doUpdate:
-				tri_seen_list.append(tri)
-	prop_tri_unseen = num_tri_unseen / num_tri # proportion of unseen trigram words
+    # trigram process
+    num_tri = len(data) - 2
+    num_tri_unseen = 0
+    for i in range(num_tri):
+        tri = list(data[i:i+3])
+        if not tri in tri_seen_list:
+            num_tri_unseen += 1
+            if doUpdate:
+                tri_seen_list.append(tri)
+    prop_tri_unseen = num_tri_unseen / num_tri # proportion of unseen trigram words
 
     # create tensor variable
-	input_feature = Variable(torch.Tensor(np.array([prop_uni_unseen, prop_bi_unseen, prop_tri_unseen])))
-	input_feature = input_feature.view(-1, 3)
+    input_feature = Variable(torch.Tensor(np.array([prop_uni_unseen, prop_bi_unseen, prop_tri_unseen, i_num])))
+    input_feature = input_feature.view(-1, 4)
 
-	return input_feature
+    return input_feature
 
 # Set up DQN
-input_dim = 3 # Three features(unigram, bigram, trigram)
+input_dim = 4 # Three features(unigram, bigram, trigram)
 output_dim = 1 # Q-Value
-hidden_size = 2 # Hidden Units
+hidden_size = 3 # Hidden Units
 hidden_dropout_prob = 0.2
 
 class DQN(nn.Module):
@@ -121,7 +121,7 @@ def sample(sample_num, dqn_model):
             data_list.append(data)
             
             # Construct the state (how different our input is from the dataset_train, represented as scalar values) w/o updating seen lists
-            state = create_feature(data, uni_seen_list, bi_seen_list, tri_seen_list, False)
+            state = create_feature(data, uni_seen_list, bi_seen_list, tri_seen_list, i, False)
             
             '''
             if j != N_options-1:
@@ -138,7 +138,7 @@ def sample(sample_num, dqn_model):
         choice = np.argmax(state_value_list) # Choose data with highest state value to train 
         data_sampled_DQN.append(data_list[choice]) # Add selected data into dataset
         # Update seen lists
-        state = create_feature(data_list[choice], uni_seen_list, bi_seen_list, tri_seen_list, True)
+        state = create_feature(data_list[choice], uni_seen_list, bi_seen_list, tri_seen_list, i, True)
 
         choice_random = random.randint(0, N_options-1) # Choose data randomly
         data_sampled_random.append(data_list[choice_random]) # Add selected data into dataset
@@ -159,12 +159,12 @@ def sample(sample_num, dqn_model):
         pickle.dump(data_sampled_random, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 N_samples = 2 # Number of samples to extract
-for n_sample in range(N_samples):
+for n_sample in range(1, N_samples):
     print ("# Sample", n_sample)
     sample(n_sample, 'DQN_0')
     sample(n_sample, 'DQN_1')
     sample(n_sample, 'DQN_2')
     sample(n_sample, 'DQN_3')
-    # sample(n_sample, 'DQN_4')
-# from reinforcement_learning_LSTM_training import *
+    sample(n_sample, 'DQN_4')
+from reinforcement_learning_LSTM_training import *
 # from reinforcement_learning_LSTM_training_add_two_column import *
