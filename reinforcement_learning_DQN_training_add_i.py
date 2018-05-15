@@ -10,6 +10,9 @@ sentence_list = sentence_list[:len(sentence_list)//2]   # Latter half used for D
 # extract validation data
 dataset_val = val[:len(val)//2]
 
+print (ptb_dict)
+print (len(ptb_dict))
+exit()
 # Construct the batchified list
 def select_batch(sentence_list):
 	# shuffle the sentence list for removing the ordering of the document
