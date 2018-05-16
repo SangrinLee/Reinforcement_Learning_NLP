@@ -59,7 +59,7 @@ def create_feature(data, uni_seen_list, bi_seen_list, tri_seen_list, i_num, doUp
 	prop_tri_unseen = num_tri_unseen / num_tri # proportion of unseen trigram words
 
     # create tensor variable
-	input_feature = Variable(torch.Tensor(np.array([prop_uni_unseen, prop_bi_unseen, prop_tri_unseen, i_num])))
+	input_feature = torch.Tensor(np.array([prop_uni_unseen, prop_bi_unseen, prop_tri_unseen, i_num]))
 	input_feature = input_feature.view(-1, 4)
 
 	return input_feature
@@ -120,7 +120,7 @@ def Q_learning(replay_memory):
         state_action_values = model(state)
 
         # Not Q Learning
-        expected_state_action_values = Variable(torch.FloatTensor([reward]))
+        expected_state_action_values = torch.FloatTensor([reward])
         
         # Train Q Learning
         '''
@@ -137,8 +137,7 @@ def Q_learning(replay_memory):
             # expected_state_action_values = gamma * next_state_action_value + reward
             expected_state_action_values = Variable(torch.FloatTensor([reward]))
         '''
-          
-        loss = F.smooth_l1_loss(state_action_values, expected_state_action_values) # Compute Huber loss
+        loss = F.smooth_l1_loss(state_action_values.view(1), expected_state_action_values) # Compute Huber loss
 
         # Optimize the model
         optimizer.zero_grad()
@@ -206,7 +205,10 @@ for i_ep in range(N_ep):
         '''
 
         choice = np.argmax(state_value_list) # Choose data with highest state value to train 
-        dataset_train.append(data_list[choice]) # Add selected data into train dataset
+
+        # dataset_train.append(data_list[choice]) # Add selected data into train dataset
+        dataset_train = [data_list[choice]] # Add selected data into train dataset
+
         # Update seen lists
         state = create_feature(data_list[choice], uni_seen_list, bi_seen_list, tri_seen_list, i, True)
 
@@ -233,7 +235,8 @@ for i_ep in range(N_ep):
         # Q-learning using replay memory
         if i % 100 == 0 and i != 0:
             Q_learning(replay_memory)
-
+            with open('dqn_models/replay_memory_' + str(i_ep), 'wb') as handle:
+                pickle.dump(replay_memory, handle, protocol=pickle.HIGHEST_PROTOCOL)
     # Save the state dict of DQN model
     torch.save(model.state_dict(), 'dqn_models/DQN_' + str(i_ep) + '.pt')
     # Save the replay memory
