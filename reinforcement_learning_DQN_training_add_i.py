@@ -230,12 +230,12 @@ for i_ep in range(N_ep):
         '''
         
         # Save replay memory
-        replay_memory.append([state,reward])
+        replay_memory.append([state, reward, loss_prev, loss_curr])
 
         # Q-learning using replay memory
         if i % 100 == 0 and i != 0:
             Q_learning(replay_memory)
-            with open('dqn_models/replay_memory_' + str(i_ep), 'wb') as handle:
+            with open('dqn_models/replay_memory_' + str(i_ep) + '_' + str(i), 'wb') as handle:
                 pickle.dump(replay_memory, handle, protocol=pickle.HIGHEST_PROTOCOL)
     # Save the state dict of DQN model
     torch.save(model.state_dict(), 'dqn_models/DQN_' + str(i_ep) + '.pt')
