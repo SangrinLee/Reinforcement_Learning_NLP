@@ -90,7 +90,7 @@ def train(w_t_model, train_data_array, epoch):
             cur_loss = total_loss[0] / args.log_interval
             total_loss = 0
 
-    return w_t_model, cur_loss, math.exp(cur_loss)
+    return w_t_model, total_loss[0], math.exp(cur_loss)
 
 # Uses training data to generate predictions, calculate loss based on validation/testing data
 # Not using bptt

@@ -1,7 +1,8 @@
 import numpy as np
 import pickle
-
+import random
 from extract_sentences import train, val, ptb_dict, extract_sentence_list
+import math
 
 # extract sentence list
 sentence_list = extract_sentence_list(train)
@@ -9,6 +10,10 @@ sentence_list = sentence_list[:len(sentence_list)//2]   # Latter half used for D
 
 # extract validation data
 dataset_val = val[:len(val)//2]
+
+uni_seen_freq_list = np.zeros(len(ptb_dict))
+bi_seen_freq_list = np.zeros([len(ptb_dict),len(ptb_dict)])
+# tri_seen_freq_list = np.zeros([len(ptb_dict),len(ptb_dict),len(ptb_dict)])
 
 # Construct the batchified list
 def select_batch(sentence_list):
@@ -26,43 +31,62 @@ def select_batch(sentence_list):
 
 # Create the feature by converting the sentence -> data (# of words, proportion of uni, bi, tri unseen before)
 def create_feature(data, uni_seen_list, bi_seen_list, tri_seen_list, i_num, doUpdate):
-	# unigram process
-	num_uni = len(data)
-	num_uni_unseen = 0
-	for uni in data:
-		if not uni in uni_seen_list:
-			num_uni_unseen += 1
-			if doUpdate:
-				uni_seen_list.append(uni)
-	prop_uni_unseen = num_uni_unseen / num_uni # proportion of unseen unigram words
+    # unigram process
+    num_uni = len(data)
+    num_uni_unseen = 0
+    freq_uni_seen = 0
+    for uni in data:
+        freq_uni_seen += uni_seen_freq_list[uni]
+        if not uni in uni_seen_list:
+            num_uni_unseen += 1
+            if doUpdate:
+                uni_seen_list.append(uni)
+        if doUpdate:
+            uni_seen_freq_list[uni] += 1            
+    prop_uni_unseen = num_uni_unseen / num_uni # proportion of unseen unigram words
 
-	# bigram process
-	num_bi = len(data) - 1
-	num_bi_unseen = 0
-	for i in range(num_bi):
-		bi = list(data[i:i+2])
-		if not bi in bi_seen_list:
-			num_bi_unseen += 1
-			if doUpdate:
-				bi_seen_list.append(bi)
-	prop_bi_unseen = num_bi_unseen / num_bi # proportion of unseen bigram words
+    mean_freq_uni = freq_uni_seen / num_uni
+    # print (mean_freq_uni)
 
-	# trigram process
-	num_tri = len(data) - 2
-	num_tri_unseen = 0
-	for i in range(num_tri):
-		tri = list(data[i:i+3])
-		if not tri in tri_seen_list:
-			num_tri_unseen += 1
-			if doUpdate:
-				tri_seen_list.append(tri)
-	prop_tri_unseen = num_tri_unseen / num_tri # proportion of unseen trigram words
+    # bigram process
+    num_bi = len(data) - 1
+    num_bi_unseen = 0
+    freq_bi_seen = 0
+    for i in range(num_bi):
+        bi = list(data[i:i+2])
+        freq_bi_seen += bi_seen_freq_list[bi[0], bi[1]]
+        # print (freq_bi_seen)
+        if not bi in bi_seen_list:
+            num_bi_unseen += 1
+            if doUpdate:
+                bi_seen_list.append(bi)
+        if doUpdate:
+            bi_seen_freq_list[bi[0]][bi[1]] += 1
+    prop_bi_unseen = num_bi_unseen / num_bi # proportion of unseen bigram words
+
+    mean_freq_bi = freq_bi_seen / num_bi
+
+    # trigram process
+    num_tri = len(data) - 2
+    num_tri_unseen = 0
+    for i in range(num_tri):
+        tri = list(data[i:i+3])
+        if not tri in tri_seen_list:
+            num_tri_unseen += 1
+            if doUpdate:
+                tri_seen_list.append(tri)
+                # tri_seen_freq_list[tri[0]][tri[1]][tri[2]] += 1
+    prop_tri_unseen = num_tri_unseen / num_tri # proportion of unseen trigram words
+
+    # Frequency
+    # print (np.sum(bi_seen_freq_list))
+
 
     # create tensor variable
-	input_feature = torch.Tensor(np.array([prop_uni_unseen, prop_bi_unseen, prop_tri_unseen, i_num]))
-	input_feature = input_feature.view(-1, 4)
+    input_feature = torch.Tensor(np.array([prop_uni_unseen, prop_bi_unseen, prop_tri_unseen, mean_freq_uni, mean_freq_bi, math.log(i_num+1)]))
+    input_feature = input_feature.view(-1, 6)
 
-	return input_feature
+    return input_feature
     
 # Reinforcement learning -------------------------------------------------------------------------------------------
 import torch
@@ -82,9 +106,9 @@ batch_size_LSTM = 1
 cuda_LSTM = True
 
 # Set up DQN
-input_dim = 4 # Three features(unigram, bigram, trigram)
+input_dim = 6 # Three features(unigram, bigram, trigram)
 output_dim = 1 # Q-Value (421 -> 4101)
-hidden_size = 3 # Hidden Units
+hidden_size = 6 # Hidden Units
 hidden_dropout_prob = 0.2
 
 class DQN(nn.Module):
@@ -154,6 +178,18 @@ N_options = 5   # Number of options to choose from for training
 # Initialize optimizer to update the DQN
 optimizer = optim.RMSprop(model.parameters())
 
+# Initialize LSTM model, allocate the cuda memory
+# model_LSTM = MyLSTM(n_letters, hidden_size_LSTM, nlayers_LSTM, True, True, hidden_dropout_prob_LSTM, bidirectional_LSTM, batch_size_LSTM, cuda_LSTM)
+# model_LSTM.cuda()
+
+# data = datset[0]
+# dataset_train = []
+
+# model_LSTM, _, _ = w_t_RL.train(model_LSTM, dataset_train, 0) # train LSTM based on dataset_labelled
+# loss_curr = w_t_RL.evaluate(model_LSTM, dataset_val, 0) # Evaluate previous loss
+
+# exit()
+
 # Loop over episodes
 for i_ep in range(N_ep):    
     if i_ep > 0:
@@ -195,7 +231,15 @@ for i_ep in range(N_ep):
             '''
             
             # Store each state value into state value list
+            # for param in model.parameters():
+                # print (param)
+            
             model_output = model(state).data
+            # print ("#####")
+            # for param in model.parameters():
+                # print (param)
+            
+            # print ("$$$$$")
             state_value_list.append(model_output[0][0])
             
         '''
@@ -204,7 +248,8 @@ for i_ep in range(N_ep):
             replay_memory.append([state_prev, reward_prev, state])
         '''
 
-        choice = np.argmax(state_value_list) # Choose data with highest state value to train 
+        # choice = np.argmax(state_value_list) # Choose data with highest state value to train 
+        choice = random.randint(0, N_options-1) # Choose data randomly
 
         # dataset_train.append(data_list[choice]) # Add selected data into train dataset
         dataset_train = [data_list[choice]] # Add selected data into train dataset
@@ -213,12 +258,12 @@ for i_ep in range(N_ep):
         state = create_feature(data_list[choice], uni_seen_list, bi_seen_list, tri_seen_list, i, True)
 
         loss_prev = w_t_RL.evaluate(model_LSTM, dataset_val, i_ep) # Evaluate previous loss
-        model_LSTM, _, _ = w_t_RL.train(model_LSTM, dataset_train, i_ep) # train LSTM based on dataset_labelled
+        model_LSTM, loss_train, _ = w_t_RL.train(model_LSTM, dataset_train, i_ep) # train LSTM based on dataset_labelled
         loss_curr = w_t_RL.evaluate(model_LSTM, dataset_val, i_ep) # Evaluate current loss
         reward = loss_prev - loss_curr # Reward(Difference between previous loss and current loss)
 
         print ("#", i, ", loss_prev, loss_cur, reward :", loss_prev, loss_curr, reward)
-
+        # print (loss_train)
         '''
         # Save replay memory with "terminal" state when dataset is exhausted
         if i == len(dataset)//N_options-1:
@@ -230,7 +275,7 @@ for i_ep in range(N_ep):
         '''
         
         # Save replay memory
-        replay_memory.append([state, reward, loss_prev, loss_curr])
+        replay_memory.append([state, reward, loss_prev, loss_curr, loss_train])
 
         # Q-learning using replay memory
         if i % 100 == 0 and i != 0:
