@@ -7,14 +7,14 @@ import torch.optim as optim
 import torch.nn as nn
 import torch.nn.functional as F
 
-N_ep = 100 # Number of episodes
+N_ep = 10 # Number of episodes
 prop_test = 0.2 # Proportion of test set
-shuffle = True # Shuffle data every episode
+shuffle = False # Shuffle data every episode
 episode_rec = int(N_ep/10)
 
 # Load data
 #f = open('replay_memory_0','rb')
-f = open('dqn_models/replay_memory_0','rb')
+f = open('dqn_models/replay_memory_661_layer_1000_batch_10_trainiter','rb')
 dataset = pickle.load(f)
 
 # Data size

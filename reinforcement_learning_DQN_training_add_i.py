@@ -258,7 +258,10 @@ for i_ep in range(N_ep):
         state = create_feature(data_list[choice], uni_seen_list, bi_seen_list, tri_seen_list, i, True)
 
         loss_prev = w_t_RL.evaluate(model_LSTM, dataset_val, i_ep) # Evaluate previous loss
+        
+        # for train_i in range(10):
         model_LSTM, loss_train, _ = w_t_RL.train(model_LSTM, dataset_train, i_ep) # train LSTM based on dataset_labelled
+        
         loss_curr = w_t_RL.evaluate(model_LSTM, dataset_val, i_ep) # Evaluate current loss
         reward = loss_prev - loss_curr # Reward(Difference between previous loss and current loss)
 
