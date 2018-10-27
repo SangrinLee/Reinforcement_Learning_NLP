@@ -23,8 +23,8 @@ def select_batch(sentence_list):
 	sentence_list = np.concatenate(sentence_list)
 
 	# create the batch with the size of 60
-	nbatch = len(sentence_list) // 60
-	sentence_list = sentence_list[:nbatch*60]
+	nbatch = len(sentence_list) // 3000
+	sentence_list = sentence_list[:nbatch*3000]
 	batchified_list = np.split(sentence_list, nbatch)
 
 	return batchified_list
@@ -281,7 +281,7 @@ for i_ep in range(N_ep):
         replay_memory.append([state, reward, loss_prev, loss_curr, loss_train])
 
         # Q-learning using replay memory
-        if i % 100 == 0 and i != 0:
+        if i % 10 == 0 and i != 0:
             Q_learning(replay_memory)
             with open('dqn_models/replay_memory_' + str(i_ep) + '_' + str(i), 'wb') as handle:
                 pickle.dump(replay_memory, handle, protocol=pickle.HIGHEST_PROTOCOL)

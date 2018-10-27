@@ -14,7 +14,7 @@ episode_rec = int(N_ep/10)
 
 # Load data
 #f = open('replay_memory_0','rb')
-f = open('dqn_models/replay_memory_661_layer_1000_batch_10_trainiter','rb')
+f = open('dqn_models/replay_memory_0','rb')
 dataset = pickle.load(f)
 
 # Data size
@@ -22,7 +22,14 @@ num_data = len(dataset)
 # Features
 X = torch.cat([x[0] for x in dataset]).float()
 # Labels
-y = torch.from_numpy(np.array([x[1] for x in dataset])).float()
+y = torch.from_numpy(np.array([x[2] for x in dataset])).float()
+
+print (y)
+# exit()
+plt.plot(y, label='test')
+plt.legend()
+plt.show()
+exit()
 
 input_dim = X.size(1)
 
